@@ -320,6 +320,17 @@ export default function ClientsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); alert('Dados mock carregados!'); },
   });
 
+  const { mutate: deleteClient } = useMutation({
+    mutationFn: (id: number) => clientsApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); },
+  });
+
+  function handleDelete(client: Client) {
+    if (window.confirm(`Excluir "${client.name}"? Esta ação não pode ser desfeita.`)) {
+      deleteClient(client.id);
+    }
+  }
+
   const statusColor = (s: string) => {
     if (s === 'active') return 'bg-success-100 text-success-700';
     if (s === 'paused') return 'bg-warning-100 text-warning-700';
@@ -351,11 +362,21 @@ export default function ClientsPage() {
         {(clients as Client[]).map(client => (
           <Card key={client.id} className="hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-3">
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-gray-900">{client.name}</h3>
                 <div className="text-xs text-gray-500 mt-0.5">{client.ad_account || 'Sem conta vinculada'}</div>
               </div>
-              <Badge label={client.status} className={statusColor(client.status)} />
+              <div className="flex items-center gap-2 ml-2">
+                <Badge label={client.status} className={statusColor(client.status)} />
+                {client.status !== 'active' && (
+                  <button
+                    onClick={() => handleDelete(client)}
+                    title="Excluir cliente"
+                    className="text-gray-400 hover:text-red-500 transition-colors p-0.5">
+                    🗑️
+                  </button>
+                )}
+              </div>
             </div>
 
             {client.objectives?.length > 0 && (
