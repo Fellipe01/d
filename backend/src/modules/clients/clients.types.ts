@@ -14,6 +14,8 @@ export interface Client {
   payment_method: string | null;
   objectives: string[];
   monthly_budget: number | null;
+  last_meta_sync_at: string | null;
+  last_rd_sync_at: string | null;
   created_at: string;
   updated_at: string;
 }

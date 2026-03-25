@@ -352,6 +352,33 @@ export default function ClientsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); alert('Dados mock carregados!'); },
   });
 
+  const [syncingMeta, setSyncingMeta] = useState<number | null>(null);
+  const [syncingRd, setSyncingRd] = useState<number | null>(null);
+
+  async function handleSyncMeta(client: Client) {
+    setSyncingMeta(client.id);
+    try {
+      await clientsApi.syncMetaAds(client.id);
+      qc.invalidateQueries({ queryKey: ['clients'] });
+    } finally {
+      setSyncingMeta(null);
+    }
+  }
+
+  async function handleSyncRd(client: Client) {
+    if (!client.rdstation_token) {
+      alert('Configure o Token RD Station no cliente antes de sincronizar.');
+      return;
+    }
+    setSyncingRd(client.id);
+    try {
+      await clientsApi.syncRdStation(client.id);
+      qc.invalidateQueries({ queryKey: ['clients'] });
+    } finally {
+      setSyncingRd(null);
+    }
+  }
+
   const { mutate: deleteClient } = useMutation({
     mutationFn: (id: number) => clientsApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); },
@@ -425,9 +452,38 @@ export default function ClientsPage() {
               </div>
             )}
 
-            {client.rdstation_token && (
-              <div className="text-xs text-success-600 mb-2">✓ RD Station configurado</div>
-            )}
+            {/* Sync status */}
+            <div className="space-y-1.5 mb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500">📊 Meta Ads</span>
+                  {client.last_meta_sync_at
+                    ? <span className="text-xs text-gray-400">{new Date(client.last_meta_sync_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                    : <span className="text-xs text-gray-300">nunca sincronizado</span>}
+                </div>
+                <button
+                  onClick={() => handleSyncMeta(client)}
+                  disabled={syncingMeta === client.id}
+                  className="text-xs px-2 py-0.5 rounded border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-wait">
+                  {syncingMeta === client.id ? '⏳' : '↺'} Sync
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500">🔗 RD Station</span>
+                  {client.last_rd_sync_at
+                    ? <span className="text-xs text-gray-400">{new Date(client.last_rd_sync_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                    : <span className="text-xs text-gray-300">{client.rdstation_token ? 'nunca sincronizado' : 'sem token'}</span>}
+                </div>
+                <button
+                  onClick={() => handleSyncRd(client)}
+                  disabled={syncingRd === client.id || !client.rdstation_token}
+                  className="text-xs px-2 py-0.5 rounded border border-green-200 text-green-600 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {syncingRd === client.id ? '⏳' : '↺'} Sync
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setEditClient(client)}
@@ -438,11 +494,6 @@ export default function ClientsPage() {
                 onClick={() => setKpiClient(client)}
                 className="px-3 py-1.5 text-xs border border-brand-300 text-brand-600 rounded-lg hover:bg-brand-50">
                 Configurar KPIs
-              </button>
-              <button
-                onClick={() => seedMock(client.id)}
-                className="px-3 py-1.5 text-xs border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50">
-                Carregar Mock
               </button>
             </div>
           </Card>

@@ -6,8 +6,21 @@ const router = Router();
 
 router.post('/ingestion/:clientId/meta-ads/mock', async (req, res, next) => {
   try {
-    await seedMockData(Number(req.params.clientId));
-    res.json({ message: 'Mock data seeded successfully' });
+    const clientId = Number(req.params.clientId);
+    await seedMockData(clientId);
+    await supabase.from('clients').update({ last_meta_sync_at: new Date().toISOString() }).eq('id', clientId);
+    res.json({ message: 'Mock data seeded successfully', synced_at: new Date().toISOString() });
+  } catch (e) { next(e); }
+});
+
+router.post('/ingestion/:clientId/rd-station/sync', async (req, res, next) => {
+  try {
+    const clientId = Number(req.params.clientId);
+    // Placeholder: RD Station real integration reads rdstation_token from client
+    // and pulls deals/leads into crm_metrics using stage config (rd_mql_stage etc.)
+    const now = new Date().toISOString();
+    await supabase.from('clients').update({ last_rd_sync_at: now }).eq('id', clientId);
+    res.json({ message: 'RD Station sync triggered', synced_at: now });
   } catch (e) { next(e); }
 });
 

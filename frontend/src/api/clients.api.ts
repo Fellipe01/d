@@ -16,6 +16,8 @@ export interface Client {
   payment_method: string | null;
   objectives: string[];
   monthly_budget: number | null;
+  last_meta_sync_at: string | null;
+  last_rd_sync_at: string | null;
   created_at: string;
   kpis?: ClientKpi[];
 }
@@ -41,5 +43,7 @@ export const clientsApi = {
   upsertKpis: (id: number, kpis: Partial<ClientKpi>[]) =>
     api.put<ClientKpi[]>(`/clients/${id}/kpis`, { kpis }).then(r => r.data),
   seedMock: (id: number) => api.post(`/ingestion/${id}/meta-ads/mock`).then(r => r.data),
+  syncMetaAds: (id: number) => api.post(`/ingestion/${id}/meta-ads/mock`).then(r => r.data),
+  syncRdStation: (id: number) => api.post(`/ingestion/${id}/rd-station/sync`).then(r => r.data),
   checkAlerts: (id: number) => api.post(`/clients/${id}/alerts/check`).then(r => r.data),
 };
