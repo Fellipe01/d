@@ -11,12 +11,15 @@ function slugify(name: string): string {
 }
 
 function parseClient(row: Record<string, unknown>): Client {
-  return {
-    ...row as unknown as Client,
-    objectives: typeof row.objectives === 'string'
+  let objectives: string[] = [];
+  try {
+    objectives = typeof row.objectives === 'string'
       ? JSON.parse(row.objectives || '[]')
-      : (row.objectives as string[] ?? []),
-  };
+      : (row.objectives as string[] ?? []);
+  } catch {
+    objectives = [];
+  }
+  return { ...row as unknown as Client, objectives };
 }
 
 export async function findAllClients(): Promise<Client[]> {

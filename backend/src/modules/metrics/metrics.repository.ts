@@ -57,7 +57,7 @@ export async function getClientMetrics(clientId: number, start: string, end: str
     .eq('client_id', clientId);
   if (campErr) throw campErr;
 
-  const campaignIds = (campaigns || []).map((c: { id: number }) => c.id);
+  const campaignIds = (campaigns || []).map((c: { id: number }) => Number(c.id)).filter(id => !isNaN(id) && id > 0);
   if (!campaignIds.length) return buildAggregated({});
 
   // Step 2: Get metrics for those campaign IDs
@@ -118,7 +118,7 @@ export async function getClientMetricsTimeseries(clientId: number, start: string
     .eq('client_id', clientId);
   if (campErr) throw campErr;
 
-  const campaignIds = (campaigns || []).map((c: { id: number }) => c.id);
+  const campaignIds = (campaigns || []).map((c: { id: number }) => Number(c.id)).filter(id => !isNaN(id) && id > 0);
   if (!campaignIds.length) return [];
 
   // Step 2: Get daily metrics
@@ -156,7 +156,7 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
     .eq('client_id', clientId);
   if (campErr) throw campErr;
 
-  const campaignIds = (campaigns || []).map((c: { id: number }) => c.id);
+  const campaignIds = (campaigns || []).map((c: { id: number }) => Number(c.id)).filter(id => !isNaN(id) && id > 0);
   if (!campaignIds.length) return [];
 
   // Step 2: Get ad set IDs
@@ -166,7 +166,7 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
     .in('campaign_id', campaignIds);
   if (adsErr) throw adsErr;
 
-  const adSetIds = (adSets || []).map((a: { id: number }) => a.id);
+  const adSetIds = (adSets || []).map((a: { id: number }) => Number(a.id)).filter(id => !isNaN(id) && id > 0);
   if (!adSetIds.length) return [];
 
   // Step 3: Get creative IDs for those ad sets
