@@ -97,6 +97,9 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
     name: client.name,
     ad_account: client.ad_account ?? '',
     rdstation_token: client.rdstation_token ?? '',
+    rd_fonte_field: client.rd_fonte_field ?? '',
+    rd_campanha_field: client.rd_campanha_field ?? '',
+    rd_criativo_field: client.rd_criativo_field ?? '',
     payment_method: client.payment_method ?? '',
     monthly_budget: client.monthly_budget?.toString() ?? '',
     status: client.status,
@@ -138,6 +141,33 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
               <p className="text-xs text-success-600 mt-0.5">✓ Token configurado</p>
             )}
           </div>
+
+          {/* RD Station field mapping */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Mapeamento de Campos — RD Station</p>
+            <p className="text-xs text-gray-400 mb-3">Informe o nome exato do campo personalizado no RD Station para cada variável. Varia por conta de cliente.</p>
+            <div className="space-y-2">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Campo: Fonte</label>
+                <input value={form.rd_fonte_field} onChange={e => setForm(f => ({...f, rd_fonte_field: e.target.value}))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: fonte, utm_source, cf_fonte" />
+                <p className="text-xs text-gray-400 mt-0.5">Variável que indexa a origem (Facebook/Meta)</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Campo: Campanha do Anúncio</label>
+                <input value={form.rd_campanha_field} onChange={e => setForm(f => ({...f, rd_campanha_field: e.target.value}))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: campanha_de_anuncio, cf_campanha" />
+                <p className="text-xs text-gray-400 mt-0.5">Variável que indexa a campanha</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Campo: Criativo</label>
+                <input value={form.rd_criativo_field} onChange={e => setForm(f => ({...f, rd_criativo_field: e.target.value}))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: criativo, cf_criativo, ad_name" />
+                <p className="text-xs text-gray-400 mt-0.5">Variável que indexa o criativo</p>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-medium text-gray-700">Status</label>
             <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value as Client['status']}))}
@@ -171,6 +201,9 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
               ...form,
               monthly_budget: Number(form.monthly_budget) || undefined,
               rdstation_token: form.rdstation_token || undefined,
+              rd_fonte_field: form.rd_fonte_field || undefined,
+              rd_campanha_field: form.rd_campanha_field || undefined,
+              rd_criativo_field: form.rd_criativo_field || undefined,
             })}
             disabled={!form.name || isPending}
             className="flex-1 px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">

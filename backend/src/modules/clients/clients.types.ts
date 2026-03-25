@@ -4,6 +4,9 @@ export interface Client {
   slug: string;
   ad_account: string | null;
   rdstation_token: string | null;
+  rd_fonte_field: string | null;
+  rd_campanha_field: string | null;
+  rd_criativo_field: string | null;
   status: 'active' | 'paused' | 'churned';
   payment_method: string | null;
   objectives: string[];
@@ -27,6 +30,9 @@ export interface CreateClientDto {
   name: string;
   ad_account?: string;
   rdstation_token?: string;
+  rd_fonte_field?: string;
+  rd_campanha_field?: string;
+  rd_criativo_field?: string;
   status?: 'active' | 'paused' | 'churned';
   payment_method?: string;
   objectives?: string[];

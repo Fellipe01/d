@@ -6,6 +6,9 @@ export interface Client {
   slug: string;
   ad_account: string | null;
   rdstation_token: string | null;
+  rd_fonte_field: string | null;
+  rd_campanha_field: string | null;
+  rd_criativo_field: string | null;
   status: 'active' | 'paused' | 'churned';
   payment_method: string | null;
   objectives: string[];
