@@ -20,11 +20,11 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'service_role_supabase is required'),
 });
 
-// Map the Supabase env var names to the schema keys
+// Accept both legacy names and standard names
 const rawEnv = {
   ...process.env,
-  SUPABASE_URL: process.env.API_URL_supabase,
-  SUPABASE_SERVICE_ROLE_KEY: process.env.service_role_supabase,
+  SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.API_URL_supabase,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.service_role_supabase,
 };
 
 const parsed = envSchema.safeParse(rawEnv);

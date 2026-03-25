@@ -1,6 +1,7 @@
 {
   "name": "dae-backend",
   "version": "1.0.0",
+  "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

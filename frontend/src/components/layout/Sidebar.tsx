@@ -11,6 +11,7 @@ const NAV = [
   { to: '/reports', label: 'Relatórios', icon: '📋' },
   { to: '/alerts', label: 'Alertas', icon: '🔔' },
   { to: '/activities', label: 'Atividades', icon: '📝' },
+  { to: '/tasks', label: 'Tarefas', icon: '✅' },
 ];
 
 export default function Sidebar() {
