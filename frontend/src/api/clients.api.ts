@@ -5,6 +5,7 @@ export interface Client {
   name: string;
   slug: string;
   ad_account: string | null;
+  rdstation_token: string | null;
   status: 'active' | 'paused' | 'churned';
   payment_method: string | null;
   objectives: string[];

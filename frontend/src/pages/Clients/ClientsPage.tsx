@@ -23,7 +23,7 @@ const OBJECTIVES = ['leads', 'whatsapp', 'vendas', 'seguidores', 'trafego', 'alc
 function ClientForm({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
-    name: '', ad_account: '', payment_method: '',
+    name: '', ad_account: '', rdstation_token: '', payment_method: '',
     objectives: [] as string[], monthly_budget: '',
     status: 'active' as const,
   });
@@ -42,7 +42,7 @@ function ClientForm({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
         <h2 className="font-bold text-lg mb-4">Novo Cliente</h2>
         <div className="space-y-3">
           <div>
@@ -54,6 +54,11 @@ function ClientForm({ onClose }: { onClose: () => void }) {
             <label className="text-sm font-medium text-gray-700">Conta de Anúncios (Meta)</label>
             <input value={form.ad_account} onChange={e => setForm(f => ({...f, ad_account: e.target.value}))}
               className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="act_123456789" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Token RD Station</label>
+            <input value={form.rdstation_token} onChange={e => setForm(f => ({...f, rdstation_token: e.target.value}))}
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Token de acesso do RD Station" />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-700">Budget Mensal (R$)</label>
@@ -75,10 +80,101 @@ function ClientForm({ onClose }: { onClose: () => void }) {
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
           <button
-            onClick={() => mutate({ ...form, monthly_budget: Number(form.monthly_budget) || undefined })}
+            onClick={() => mutate({ ...form, monthly_budget: Number(form.monthly_budget) || undefined, rdstation_token: form.rdstation_token || undefined })}
             disabled={!form.name || isPending}
             className="flex-1 px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">
             {isPending ? 'Salvando...' : 'Criar Cliente'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditClientModal({ client, onClose }: { client: Client; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: client.name,
+    ad_account: client.ad_account ?? '',
+    rdstation_token: client.rdstation_token ?? '',
+    payment_method: client.payment_method ?? '',
+    monthly_budget: client.monthly_budget?.toString() ?? '',
+    status: client.status,
+    objectives: client.objectives ?? [] as string[],
+  });
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (data: Partial<Client>) => clientsApi.update(client.id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); onClose(); },
+  });
+
+  function toggle(obj: string) {
+    setForm(f => ({
+      ...f,
+      objectives: f.objectives.includes(obj) ? f.objectives.filter(o => o !== obj) : [...f.objectives, obj],
+    }));
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+        <h2 className="font-bold text-lg mb-4">Editar — {client.name}</h2>
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-gray-700">Nome *</label>
+            <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))}
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Conta de Anúncios (Meta)</label>
+            <input value={form.ad_account} onChange={e => setForm(f => ({...f, ad_account: e.target.value}))}
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="act_123456789" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Token RD Station</label>
+            <input value={form.rdstation_token} onChange={e => setForm(f => ({...f, rdstation_token: e.target.value}))}
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Token de acesso do RD Station" />
+            {client.rdstation_token && (
+              <p className="text-xs text-success-600 mt-0.5">✓ Token configurado</p>
+            )}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Status</label>
+            <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value as Client['status']}))}
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+              <option value="active">Ativo</option>
+              <option value="paused">Pausado</option>
+              <option value="churned">Churned</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Budget Mensal (R$)</label>
+            <input type="number" value={form.monthly_budget} onChange={e => setForm(f => ({...f, monthly_budget: e.target.value}))}
+              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="5000" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">Objetivos</label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {OBJECTIVES.map(obj => (
+                <button key={obj} type="button" onClick={() => toggle(obj)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${form.objectives.includes(obj) ? 'bg-brand-600 text-white border-brand-600' : 'border-gray-300 text-gray-600 hover:border-brand-400'}`}>
+                  {obj}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
+          <button
+            onClick={() => mutate({
+              ...form,
+              monthly_budget: Number(form.monthly_budget) || undefined,
+              rdstation_token: form.rdstation_token || undefined,
+            })}
+            disabled={!form.name || isPending}
+            className="flex-1 px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">
+            {isPending ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
       </div>
@@ -178,6 +274,7 @@ function KPIModal({ client, onClose }: { client: Client; onClose: () => void }) 
 export default function ClientsPage() {
   const [showNew, setShowNew] = useState(false);
   const [kpiClient, setKpiClient] = useState<Client | null>(null);
+  const [editClient, setEditClient] = useState<Client | null>(null);
   const qc = useQueryClient();
 
   const { data: clients = [], isLoading } = useQuery({
@@ -242,7 +339,15 @@ export default function ClientsPage() {
               </div>
             )}
 
+            {client.rdstation_token && (
+              <div className="text-xs text-success-600 mb-2">✓ RD Station configurado</div>
+            )}
             <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setEditClient(client)}
+                className="px-3 py-1.5 text-xs border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50">
+                Editar
+              </button>
               <button
                 onClick={() => setKpiClient(client)}
                 className="px-3 py-1.5 text-xs border border-brand-300 text-brand-600 rounded-lg hover:bg-brand-50">
@@ -259,6 +364,7 @@ export default function ClientsPage() {
       </div>
 
       {showNew && <ClientForm onClose={() => setShowNew(false)} />}
+      {editClient && <EditClientModal client={editClient} onClose={() => setEditClient(null)} />}
       {kpiClient && <KPIModal client={kpiClient} onClose={() => setKpiClient(null)} />}
     </div>
   );
