@@ -360,6 +360,9 @@ export default function ClientsPage() {
     try {
       await clientsApi.syncMetaAds(client.id);
       qc.invalidateQueries({ queryKey: ['clients'] });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
+      alert(msg || 'Erro ao sincronizar Meta Ads.');
     } finally {
       setSyncingMeta(null);
     }

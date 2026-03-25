@@ -1,10 +1,15 @@
 import { Router } from 'express';
 import { seedMockData } from './adapters/meta-ads.mock';
 import { supabase } from '../../config/supabase';
+import { env } from '../../config/env';
 
 const router = Router();
 
 router.post('/ingestion/:clientId/meta-ads/mock', async (req, res, next) => {
+  if (!env.USE_META_MOCK) {
+    res.status(403).json({ error: { message: 'Mock data is disabled (USE_META_MOCK=false). Use the real Meta Ads sync instead.', code: 'MOCK_DISABLED' } });
+    return;
+  }
   try {
     const clientId = Number(req.params.clientId);
     await seedMockData(clientId);
