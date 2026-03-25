@@ -100,6 +100,9 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
     rd_fonte_field: client.rd_fonte_field ?? '',
     rd_campanha_field: client.rd_campanha_field ?? '',
     rd_criativo_field: client.rd_criativo_field ?? '',
+    rd_mql_stage: client.rd_mql_stage ?? '',
+    rd_sql_stage: client.rd_sql_stage ?? '',
+    rd_venda_stage: client.rd_venda_stage ?? '',
     payment_method: client.payment_method ?? '',
     monthly_budget: client.monthly_budget?.toString() ?? '',
     status: client.status,
@@ -168,6 +171,32 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
             </div>
           </div>
 
+          {/* Kanban stages */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Estágios do Kanban — RD Station</p>
+            <p className="text-xs text-gray-400 mb-3">Informe o nome exato da coluna do Kanban que representa cada etapa do funil. Usado para qualificar os leads das campanhas.</p>
+            <div className="space-y-2">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Coluna: MQL</label>
+                <input value={form.rd_mql_stage} onChange={e => setForm(f => ({...f, rd_mql_stage: e.target.value}))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: Pré-qualificação, Qualificado, MQL" />
+                <p className="text-xs text-gray-400 mt-0.5">Lead se torna MQL ao entrar nesta coluna</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Coluna: SQL</label>
+                <input value={form.rd_sql_stage} onChange={e => setForm(f => ({...f, rd_sql_stage: e.target.value}))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: Proposta enviada, Negociação, SQL" />
+                <p className="text-xs text-gray-400 mt-0.5">Lead se torna SQL ao entrar nesta coluna</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Coluna: Venda</label>
+                <input value={form.rd_venda_stage} onChange={e => setForm(f => ({...f, rd_venda_stage: e.target.value}))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: Fechado, Ganho, Contratado" />
+                <p className="text-xs text-gray-400 mt-0.5">Lead se torna Venda ao entrar nesta coluna</p>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-medium text-gray-700">Status</label>
             <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value as Client['status']}))}
@@ -204,6 +233,9 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
               rd_fonte_field: form.rd_fonte_field || undefined,
               rd_campanha_field: form.rd_campanha_field || undefined,
               rd_criativo_field: form.rd_criativo_field || undefined,
+              rd_mql_stage: form.rd_mql_stage || undefined,
+              rd_sql_stage: form.rd_sql_stage || undefined,
+              rd_venda_stage: form.rd_venda_stage || undefined,
             })}
             disabled={!form.name || isPending}
             className="flex-1 px-4 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">

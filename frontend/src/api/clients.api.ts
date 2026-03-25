@@ -9,6 +9,9 @@ export interface Client {
   rd_fonte_field: string | null;
   rd_campanha_field: string | null;
   rd_criativo_field: string | null;
+  rd_mql_stage: string | null;
+  rd_sql_stage: string | null;
+  rd_venda_stage: string | null;
   status: 'active' | 'paused' | 'churned';
   payment_method: string | null;
   objectives: string[];
