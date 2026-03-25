@@ -24,6 +24,19 @@ export async function seedMockData(clientId: number): Promise<void> {
     return;
   }
 
+  // Fetch client monthly_budget to generate proportional data
+  const { data: clientData } = await supabase
+    .from('clients')
+    .select('monthly_budget')
+    .eq('id', clientId)
+    .maybeSingle();
+
+  const monthlyBudget: number = (clientData as { monthly_budget: number | null } | null)?.monthly_budget ?? 3000;
+  const dailyBudgetTotal = monthlyBudget / 30;
+  // 2 active campaigns, 1 paused — active ones split ~85% of budget
+  const dailyPerActiveCamp = (dailyBudgetTotal * 0.85) / 2;
+  const dailyPerPausedCamp = dailyBudgetTotal * 0.15;
+
   const today = new Date();
 
   // Create 3 campaigns
@@ -87,6 +100,11 @@ export async function seedMockData(clientId: number): Promise<void> {
         let baseFreq = 0.5;
         const saturationDay = randInt(40, 80);
 
+        // Budget per creative: split adset budget evenly across creatives in this adset
+        const campDailyBudget = campData.status === 'active' ? dailyPerActiveCamp : dailyPerPausedCamp;
+        const adSetDailyBudget = campDailyBudget / 2; // 2 ad sets per campaign
+        const creativeDailyBudget = adSetDailyBudget / numCreatives;
+
         for (let day = 89; day >= 0; day--) {
           const date = toISODate(subDays(today, day));
           const dayIndex = 89 - day;
@@ -97,10 +115,13 @@ export async function seedMockData(clientId: number): Promise<void> {
             baseCTR = Math.max(baseCTR * (1 - rand(0.01, 0.03)), 0.3);
           }
 
-          const impressions = randInt(500, 3000);
+          // Spend proportional to creative budget with ±20% daily variance
+          const spend = rand(creativeDailyBudget * 0.8, creativeDailyBudget * 1.2);
+          // Impressions derived from spend using realistic Brazilian Meta CPM (R$15–30)
+          const cpm = rand(15, 30);
+          const impressions = Math.round((spend / cpm) * 1000);
           const reach = Math.round(impressions / Math.max(baseFreq, 1));
           const clicks = Math.round(impressions * (baseCTR / 100));
-          const spend = rand(15, 120);
           const leads = campData.objective === 'LEAD_GENERATION' ? randInt(0, Math.max(1, Math.round(clicks * 0.15))) : 0;
           const messages = campData.objective === 'CONVERSIONS' ? randInt(0, Math.max(1, Math.round(clicks * 0.2))) : 0;
 
@@ -131,14 +152,17 @@ export async function seedMockData(clientId: number): Promise<void> {
     }
 
     // Campaign-level rollup (last 90 days)
+    const campDailyBudget = campData.status === 'active' ? dailyPerActiveCamp : dailyPerPausedCamp;
     const campMetrics = [];
     for (let day = 89; day >= 0; day--) {
       const date = toISODate(subDays(today, day));
-      const impressions = randInt(2000, 10000);
-      const clicks = randInt(50, 400);
-      const spend = rand(80, 500);
-      const leads = campData.objective === 'LEAD_GENERATION' ? randInt(2, 25) : 0;
-      const messages = campData.objective === 'CONVERSIONS' ? randInt(3, 30) : 0;
+      const spend = rand(campDailyBudget * 0.8, campDailyBudget * 1.2);
+      const cpm = rand(15, 30);
+      const impressions = Math.round((spend / cpm) * 1000);
+      const ctr = rand(0.8, 2.5);
+      const clicks = Math.round(impressions * (ctr / 100));
+      const leads = campData.objective === 'LEAD_GENERATION' ? randInt(1, Math.max(2, Math.round(clicks * 0.12))) : 0;
+      const messages = campData.objective === 'CONVERSIONS' ? randInt(1, Math.max(2, Math.round(clicks * 0.18))) : 0;
 
       campMetrics.push({
         entity_type: 'campaign' as const,
@@ -149,7 +173,7 @@ export async function seedMockData(clientId: number): Promise<void> {
         reach: Math.round(impressions / rand(1.2, 3.5)),
         frequency: rand(1.0, 4.5),
         clicks,
-        ctr: (clicks / impressions) * 100,
+        ctr,
         cpc: clicks > 0 ? spend / clicks : 0,
         cpm: (spend / impressions) * 1000,
         leads,
@@ -168,14 +192,18 @@ export async function seedMockData(clientId: number): Promise<void> {
   // Seed CRM data using the created campaign IDs
   for (const campId of createdCampaignIds) {
     const crmRows = [];
+    // Average campaign daily budget (mix of active/paused)
+    const avgCampDailyBudget = dailyBudgetTotal / campaigns.length;
     for (let day = 89; day >= 0; day--) {
       const date = toISODate(subDays(today, day));
-      const leads = randInt(3, 20);
+      const spend = rand(avgCampDailyBudget * 0.8, avgCampDailyBudget * 1.2);
+      // Scale leads to budget: assume ~R$30-60 CPL
+      const cpl = rand(30, 60);
+      const leads = Math.max(1, Math.round(spend / cpl));
       const mql = Math.round(leads * rand(0.2, 0.5));
       const sql = Math.round(mql * rand(0.2, 0.5));
       const sales = Math.round(sql * rand(0.15, 0.4));
       const revenue = sales * rand(500, 3000);
-      const spend = rand(80, 400);
 
       crmRows.push({
         client_id: clientId,
