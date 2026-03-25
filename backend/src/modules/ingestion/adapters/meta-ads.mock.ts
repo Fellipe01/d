@@ -202,7 +202,7 @@ export async function seedMockData(clientId: number): Promise<void> {
       const batch = crmRows.slice(i, i + batchSize);
       const { error } = await supabase
         .from('crm_metrics')
-        .upsert(batch, { onConflict: 'client_id,campaign_id,date', ignoreDuplicates: true });
+        .upsert(batch, { onConflict: 'client_id,campaign_id,creative_id,date', ignoreDuplicates: true });
       if (error) throw error;
     }
   }
