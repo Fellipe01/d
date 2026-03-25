@@ -10,8 +10,25 @@ function randInt(min: number, max: number): number {
   return Math.round(rand(min, max));
 }
 
+// In-memory lock to prevent concurrent seeding of the same client
+const seedingInProgress = new Set<number>();
+
 // Seed realistic 90-day historical data for a client
 export async function seedMockData(clientId: number): Promise<void> {
+  if (seedingInProgress.has(clientId)) {
+    console.log(`[Mock] Client ${clientId} seed already in progress, skipping`);
+    return;
+  }
+  seedingInProgress.add(clientId);
+
+  try {
+    await _seedMockData(clientId);
+  } finally {
+    seedingInProgress.delete(clientId);
+  }
+}
+
+async function _seedMockData(clientId: number): Promise<void> {
   // Check if client already has data
   const { data: existing } = await supabase
     .from('campaigns')
