@@ -35,7 +35,7 @@ app.param(['id', 'clientId', 'campaignId', 'creativeId', 'adSetId'], (req, res, 
 });
 
 // Routes
-app.use('/api', clientsRouter);
+app.use('/api/clients', clientsRouter);
 app.use('/api', campaignsRouter);
 app.use('/api', metricsRouter);
 app.use('/api', ingestionRouter);
