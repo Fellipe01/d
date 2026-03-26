@@ -105,6 +105,7 @@ async function _seedMockData(clientId: number): Promise<void> {
           external_id: `cr_${Date.now()}_${ci}`,
           name: creativeNames[creativeIdx],
           type: creativeTypes[ci % creativeTypes.length],
+          status: 'active',
           thumbnail_url: null,
           headline: `Headline ${creativeIdx + 1}`,
           body_text: `Texto do anúncio ${creativeIdx + 1}`,
