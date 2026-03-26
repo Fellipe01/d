@@ -172,7 +172,7 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
   // Step 3: Get creative IDs for those ad sets
   const { data: creatives, error: crErr } = await supabase
     .from('creatives')
-    .select('id,name,type,thumbnail_url')
+    .select('id,name,type,status,thumbnail_url')
     .in('ad_set_id', adSetIds);
   if (crErr) throw crErr;
 
@@ -191,9 +191,9 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
   if (metErr) throw metErr;
 
   // Step 5: Aggregate by creative in JS
-  type CreativeInfo = { id: number; name: string; type: string; thumbnail_url: string | null };
+  type CreativeInfo = { id: number; name: string; type: string; status: string; thumbnail_url: string | null };
   type CreativeAgg = {
-    id: number; name: string; type: string; thumbnail_url: string | null;
+    id: number; name: string; type: string; status: string; thumbnail_url: string | null;
     spend: number; impressions: number; clicks: number; leads: number;
     freq_sum: number; ctr_sum: number; cpl_sum: number; count: number;
   };
@@ -221,6 +221,7 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
         id: m.entity_id,
         name: info.name,
         type: info.type,
+        status: info.status,
         thumbnail_url: info.thumbnail_url,
         spend: m.spend || 0,
         impressions: m.impressions || 0,
@@ -239,6 +240,7 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
       id: agg.id,
       name: agg.name,
       type: agg.type,
+      status: agg.status,
       thumbnail_url: agg.thumbnail_url,
       spend: agg.spend,
       impressions: agg.impressions,

@@ -228,17 +228,19 @@ async function _syncMetaAdsReal(clientId: number): Promise<void> {
         let creativeId: number;
 
         if (existingCreative) {
+          await supabase.from('creatives').update({ status: normalizeStatus(ma.status) }).eq('id', existingCreative.id);
           creativeId = existingCreative.id;
         } else {
           const creative = await createCreative({
             ad_set_id: adSetId,
             external_id: ma.id,
             name: ma.name,
-            type: 'image', // Meta API doesn't return type directly; can be refined later
+            type: 'image',
             thumbnail_url: cr?.thumbnail_url ?? null,
             headline: cr?.title ?? null,
             body_text: cr?.body ?? null,
             cta: cr?.call_to_action_type ?? null,
+            status: normalizeStatus(ma.status),
           });
           creativeId = creative.id;
         }

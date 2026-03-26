@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS creatives (
   headline      TEXT,
   body_text     TEXT,
   cta           TEXT,
+  status        TEXT NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active', 'paused', 'archived')),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
