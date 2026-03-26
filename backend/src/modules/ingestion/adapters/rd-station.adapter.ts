@@ -119,6 +119,18 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   const vendaPos = findStagePosition(stageOrderMap, cfg.rd_venda_stage);
   console.log(`[RD] Stage positions — MQL:${mqlPos} SQL:${sqlPos} Venda:${vendaPos}`);
 
+  // Extract prefixes from configured stage names, e.g. "(MQL) Solicitação" → "mql"
+  // Used as fallback when API order is unavailable
+  const mqlPrefix  = extractPrefix(cfg.rd_mql_stage);
+  const sqlPrefix  = extractPrefix(cfg.rd_sql_stage);
+  const vendaPrefix = extractPrefix(cfg.rd_venda_stage);
+  // Hierarchy order of known prefixes
+  const prefixRank: Record<string, number> = {
+    lead: 0, mql: 1, sql: 2,
+    sell: 3, win: 3, fechou: 3, venda: 3, ganho: 3, contrato: 3,
+  };
+  console.log(`[RD] Prefix fallback — MQL:"${mqlPrefix}" SQL:"${sqlPrefix}" Venda:"${vendaPrefix}"`);
+
   // Fetch all deals created in the last 90 days
   const deals = await rdGetAllDeals(cfg.rdstation_token, since, until);
   console.log(`[RD] Fetched ${deals.length} deals for client ${clientId}`);
@@ -174,19 +186,19 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
     const agg = aggMap.get(key)!;
     agg.leads++;
 
-    // Deal is MQL if it reached or passed the MQL stage
-    if (mqlPos !== null && (dealPos >= mqlPos || deal.win)) {
+    // Determine deal's funnel level using position map (primary) or prefix hierarchy (fallback)
+    const dealLevel = dealFunnelLevel(stageName, dealPos, prefixRank);
+    const mqlLevel  = configuredLevel(mqlPos, mqlPrefix, prefixRank);
+    const sqlLevel  = configuredLevel(sqlPos, sqlPrefix, prefixRank);
+    const vendaLevel = configuredLevel(vendaPos, vendaPrefix, prefixRank);
+
+    if (mqlLevel !== null && (dealLevel >= mqlLevel || deal.win)) {
       agg.mql++;
     }
-    // Deal is SQL if it reached or passed the SQL stage
-    if (sqlPos !== null && (dealPos >= sqlPos || deal.win)) {
+    if (sqlLevel !== null && (dealLevel >= sqlLevel || deal.win)) {
       agg.sql_count++;
     }
-    // Deal is Venda if it reached the Venda stage OR is marked as won
-    if (vendaPos !== null && dealPos >= vendaPos) {
-      agg.sales++;
-      agg.revenue += deal.amount ?? deal.amount_montly ?? 0;
-    } else if (deal.win === true) {
+    if ((vendaLevel !== null && dealLevel >= vendaLevel) || deal.win === true) {
       agg.sales++;
       agg.revenue += deal.amount ?? deal.amount_montly ?? 0;
     }
@@ -247,6 +259,28 @@ function findStagePosition(map: Map<string, number>, configuredName: string | nu
     if (key.includes(lower) || lower.includes(key)) return pos;
   }
   return null;
+}
+
+// Extracts the prefix keyword from a stage name like "(MQL) Solicitação" → "mql"
+function extractPrefix(stageName: string | null): string {
+  if (!stageName) return '';
+  const match = stageName.match(/\(([^)]+)\)/);
+  return match ? match[1].toLowerCase() : stageName.split(' ')[0].toLowerCase();
+}
+
+// Returns the funnel level of a deal's current stage.
+// Uses position map if available, otherwise falls back to prefix rank.
+function dealFunnelLevel(stageName: string, positionMapValue: number, prefixRank: Record<string, number>): number {
+  if (positionMapValue >= 0) return positionMapValue;
+  const prefix = extractPrefix(stageName);
+  return prefixRank[prefix] ?? 0;
+}
+
+// Returns the funnel level for a configured stage (MQL/SQL/Venda).
+function configuredLevel(pos: number | null, prefix: string, prefixRank: Record<string, number>): number | null {
+  if (pos !== null) return pos;
+  if (!prefix) return null;
+  return prefixRank[prefix] ?? null;
 }
 
 function getCustomField(deal: RdDeal, fieldLabel: string | null): string {
