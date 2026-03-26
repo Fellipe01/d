@@ -50,10 +50,17 @@ interface RdDeal {
   created_at: string;
   closed_at?: string;
   win?: boolean;
-  deal_stage?: { name: string };
+  deal_stage?: { id: string; name: string };
   deal_custom_fields?: Array<{ custom_field: { label: string }; value: string }>;
   amount_montly?: number;
   amount?: number;
+}
+
+interface RdDealStage {
+  id: string;
+  name: string;
+  step_order?: number;
+  position?: number;
 }
 
 interface ClientConfig {
@@ -104,6 +111,14 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   const since = toISODate(subDays(today, 89));
   const until = toISODate(today);
 
+  // ── Fetch deal stages to determine Kanban order ───────────────────────────
+  // A deal at position N has passed through ALL stages 1..N
+  const stageOrderMap = await fetchStageOrderMap(cfg.rdstation_token);
+  const mqlPos  = findStagePosition(stageOrderMap, cfg.rd_mql_stage);
+  const sqlPos  = findStagePosition(stageOrderMap, cfg.rd_sql_stage);
+  const vendaPos = findStagePosition(stageOrderMap, cfg.rd_venda_stage);
+  console.log(`[RD] Stage positions — MQL:${mqlPos} SQL:${sqlPos} Venda:${vendaPos}`);
+
   // Fetch all deals created in the last 90 days
   const deals = await rdGetAllDeals(cfg.rdstation_token, since, until);
   console.log(`[RD] Fetched ${deals.length} deals for client ${clientId}`);
@@ -119,7 +134,6 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   const campaignList = campaigns ?? [];
 
   // ── Aggregate deals by date + campaign ────────────────────────────────────
-  // Key: "date|campaignId"
   type DayAgg = {
     client_id: number;
     campaign_id: number | null;
@@ -135,12 +149,13 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
 
   for (const deal of deals) {
     const date = toISODate(new Date(deal.created_at));
-
-    // Extract custom field values
     const campaignName = getCustomField(deal, cfg.rd_campanha_field);
     const stageName = deal.deal_stage?.name ?? '';
 
-    // Match campaign by name (fuzzy: contains)
+    // Current position of this deal in the Kanban
+    const dealPos = stageOrderMap.get(stageName.toLowerCase()) ?? -1;
+
+    // Match campaign by name
     let campaignId: number | null = null;
     if (campaignName) {
       const match = campaignList.find(c =>
@@ -153,37 +168,26 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
     const key = `${date}|${campaignId ?? 'null'}`;
 
     if (!aggMap.has(key)) {
-      aggMap.set(key, {
-        client_id: clientId,
-        campaign_id: campaignId,
-        date,
-        leads: 0,
-        mql: 0,
-        sql_count: 0,
-        sales: 0,
-        revenue: 0,
-      });
+      aggMap.set(key, { client_id: clientId, campaign_id: campaignId, date, leads: 0, mql: 0, sql_count: 0, sales: 0, revenue: 0 });
     }
 
     const agg = aggMap.get(key)!;
-
-    // Every deal created = 1 lead
     agg.leads++;
 
-    // Classify by stage
-    if (cfg.rd_mql_stage && stageMatches(stageName, cfg.rd_mql_stage)) {
+    // Deal is MQL if it reached or passed the MQL stage
+    if (mqlPos !== null && (dealPos >= mqlPos || deal.win)) {
       agg.mql++;
     }
-    if (cfg.rd_sql_stage && stageMatches(stageName, cfg.rd_sql_stage)) {
+    // Deal is SQL if it reached or passed the SQL stage
+    if (sqlPos !== null && (dealPos >= sqlPos || deal.win)) {
       agg.sql_count++;
     }
-    if (cfg.rd_venda_stage && stageMatches(stageName, cfg.rd_venda_stage)) {
+    // Deal is Venda if it reached the Venda stage OR is marked as won
+    if (vendaPos !== null && dealPos >= vendaPos) {
       agg.sales++;
       agg.revenue += deal.amount ?? deal.amount_montly ?? 0;
-    }
-    // If deal is marked as won, count as sale regardless of stage name
-    if (deal.win === true) {
-      if (agg.sales === 0) agg.sales++;
+    } else if (deal.win === true) {
+      agg.sales++;
       agg.revenue += deal.amount ?? deal.amount_montly ?? 0;
     }
   }
@@ -214,15 +218,41 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Returns a map of stage name (lowercase) → position (0-based order)
+async function fetchStageOrderMap(token: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  try {
+    // Try /deal_stages first
+    const data = await rdGet('/deal_stages', token) as { deal_stages?: RdDealStage[] } | RdDealStage[];
+    const stages: RdDealStage[] = Array.isArray(data) ? data : (data.deal_stages ?? []);
+
+    // Sort by step_order or position
+    stages.sort((a, b) => (a.step_order ?? a.position ?? 0) - (b.step_order ?? b.position ?? 0));
+    stages.forEach((s, idx) => map.set(s.name.toLowerCase(), idx));
+  } catch {
+    // If endpoint not available, map will be empty and we fall back to name matching
+    console.warn('[RD] Could not fetch deal stages order, falling back to name matching');
+  }
+  return map;
+}
+
+// Find the position of a configured stage name in the order map
+function findStagePosition(map: Map<string, number>, configuredName: string | null): number | null {
+  if (!configuredName) return null;
+  const lower = configuredName.toLowerCase();
+  // Exact match first
+  if (map.has(lower)) return map.get(lower)!;
+  // Partial match
+  for (const [key, pos] of map.entries()) {
+    if (key.includes(lower) || lower.includes(key)) return pos;
+  }
+  return null;
+}
+
 function getCustomField(deal: RdDeal, fieldLabel: string | null): string {
   if (!fieldLabel || !deal.deal_custom_fields?.length) return '';
   const field = deal.deal_custom_fields.find(
     f => f.custom_field?.label?.toLowerCase() === fieldLabel.toLowerCase()
   );
   return field?.value ?? '';
-}
-
-function stageMatches(currentStage: string, configuredStage: string): boolean {
-  return currentStage.toLowerCase().includes(configuredStage.toLowerCase()) ||
-    configuredStage.toLowerCase().includes(currentStage.toLowerCase());
 }
