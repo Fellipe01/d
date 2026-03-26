@@ -6,9 +6,11 @@ import { toISODate, subDays } from '../../../shared/utils/date';
 
 const GRAPH_BASE = 'https://graph.facebook.com/v19.0';
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // ── HTTP helper ───────────────────────────────────────────────────────────────
 
-async function graphGet(path: string, params: Record<string, string> = {}): Promise<unknown> {
+async function graphGet(path: string, params: Record<string, string> = {}, retries = 4): Promise<unknown> {
   const token = env.META_ACCESS_TOKEN;
   if (!token) throw new Error('META_ACCESS_TOKEN not configured');
 
@@ -16,14 +18,26 @@ async function graphGet(path: string, params: Record<string, string> = {}): Prom
   url.searchParams.set('access_token', token);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  const res = await fetch(url.toString());
-  const json = await res.json() as Record<string, unknown>;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url.toString());
+    const json = await res.json() as Record<string, unknown>;
 
-  if (!res.ok || json.error) {
+    if (res.ok && !json.error) return json;
+
     const err = json.error as Record<string, unknown> | undefined;
+    const code = err?.code as number | undefined;
+    const isRateLimit = code === 4 || code === 17 || code === 32 || code === 613;
+
+    if (isRateLimit && attempt < retries) {
+      const wait = Math.pow(2, attempt + 1) * 5000; // 10s, 20s, 40s, 80s
+      console.warn(`[Meta] Rate limit (code ${code}), waiting ${wait / 1000}s before retry ${attempt + 1}/${retries}...`);
+      await sleep(wait);
+      continue;
+    }
+
     throw new Error(`Meta API error: ${err?.message ?? res.statusText}`);
   }
-  return json;
+  throw new Error('Meta API: max retries exceeded');
 }
 
 // Paginate through all edges automatically
@@ -36,6 +50,7 @@ async function graphGetAll(path: string, params: Record<string, string> = {}): P
   nextUrl = first.paging?.next ?? null;
 
   while (nextUrl) {
+    await sleep(300); // avoid burst on pagination
     const res = await fetch(nextUrl);
     const json = await res.json() as { data: unknown[]; paging?: { next?: string } };
     results.push(...json.data);
@@ -172,8 +187,10 @@ async function _syncMetaAdsReal(clientId: number): Promise<void> {
       campId = camp.id;
     }
 
-    // ── 2. Fetch campaign insights ──────────────────────────────────────────
-    await syncInsights('campaign', campId, mc.id, since, until);
+    // ── 2. Fetch campaign insights (only active campaigns) ─────────────────
+    if (mc.status === 'ACTIVE') {
+      await syncInsights('campaign', campId, mc.id, since, until);
+    }
 
     // ── 3. Fetch ad sets ────────────────────────────────────────────────────
     const metaAdSets = await graphGetAll(`/${mc.id}/adsets`, {
@@ -245,10 +262,14 @@ async function _syncMetaAdsReal(clientId: number): Promise<void> {
           creativeId = creative.id;
         }
 
-        // Sync creative-level insights
-        await syncInsights('creative', creativeId, ma.id, since, until);
+        // Sync creative-level insights (only active ads)
+        if (ma.status === 'ACTIVE') {
+          await syncInsights('creative', creativeId, ma.id, since, until);
+        }
       }
+      await sleep(200); // small pause between ad sets
     }
+    await sleep(500); // small pause between campaigns
   }
 
   console.log(`[Meta] Sync complete for client ${clientId}`);
