@@ -132,8 +132,17 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   console.log(`[RD] Prefix fallback — MQL:"${mqlPrefix}" SQL:"${sqlPrefix}" Venda:"${vendaPrefix}"`);
 
   // Fetch all deals created in the last 90 days
-  const deals = await rdGetAllDeals(cfg.rdstation_token, since, until);
-  console.log(`[RD] Fetched ${deals.length} deals for client ${clientId}`);
+  const allDeals = await rdGetAllDeals(cfg.rdstation_token, since, until);
+
+  // Filter by fonte field if configured (e.g. only "Meta/Ads" deals)
+  const deals = cfg.rd_fonte_field
+    ? allDeals.filter(d => {
+        const fonte = getCustomField(d, cfg.rd_fonte_field);
+        return fonte !== ''; // has any value in the fonte field = came from Meta/Ads
+      })
+    : allDeals;
+
+  console.log(`[RD] Fetched ${allDeals.length} deals, ${deals.length} after fonte filter for client ${clientId}`);
 
   if (!deals.length) return;
 
@@ -238,13 +247,21 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
     sql_to_sale_rate: agg.sql_count > 0 ? (agg.sales / agg.sql_count) * 100 : 0,
   }));
 
-  // Upsert in batches
+  // Delete existing rows for this client+period before inserting fresh data
+  // This prevents double-counting from multiple syncs or creative_id changes
+  const { error: delError } = await supabase
+    .from('crm_metrics')
+    .delete()
+    .eq('client_id', clientId)
+    .gte('date', since)
+    .lte('date', until);
+  if (delError) throw delError;
+
+  // Insert fresh rows in batches
   const batchSize = 50;
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
-    const { error } = await supabase
-      .from('crm_metrics')
-      .upsert(batch, { onConflict: 'client_id,campaign_id,creative_id,date', ignoreDuplicates: false });
+    const { error } = await supabase.from('crm_metrics').insert(batch);
     if (error) throw error;
   }
 
