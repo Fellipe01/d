@@ -27,6 +27,7 @@ export interface Creative {
   external_id: string | null;
   name: string;
   type: string;
+  status: string;
   thumbnail_url: string | null;
   headline: string | null;
   body_text: string | null;
