@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { seedMockData } from './adapters/meta-ads.mock';
+import { syncMetaAdsReal } from './adapters/meta-ads.adapter';
 import { supabase } from '../../config/supabase';
 import { env } from '../../config/env';
 
 const router = Router();
 
+// Mock-only endpoint (dev/test)
 router.post('/ingestion/:clientId/meta-ads/mock', async (req, res, next) => {
   if (!env.USE_META_MOCK) {
-    res.status(403).json({ error: { message: 'Mock data is disabled (USE_META_MOCK=false). Use the real Meta Ads sync instead.', code: 'MOCK_DISABLED' } });
+    res.status(403).json({ error: { message: 'Mock desabilitado. Ative USE_META_MOCK=true para dados de teste.', code: 'MOCK_DISABLED' } });
     return;
   }
   try {
@@ -15,6 +17,16 @@ router.post('/ingestion/:clientId/meta-ads/mock', async (req, res, next) => {
     await seedMockData(clientId);
     await supabase.from('clients').update({ last_meta_sync_at: new Date().toISOString() }).eq('id', clientId);
     res.json({ message: 'Mock data seeded successfully', synced_at: new Date().toISOString() });
+  } catch (e) { next(e); }
+});
+
+// Real Meta Ads sync endpoint
+router.post('/ingestion/:clientId/meta-ads/sync', async (req, res, next) => {
+  try {
+    const clientId = Number(req.params.clientId);
+    await syncMetaAdsReal(clientId);
+    await supabase.from('clients').update({ last_meta_sync_at: new Date().toISOString() }).eq('id', clientId);
+    res.json({ message: 'Meta Ads sync complete', synced_at: new Date().toISOString() });
   } catch (e) { next(e); }
 });
 

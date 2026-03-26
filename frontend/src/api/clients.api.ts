@@ -43,7 +43,7 @@ export const clientsApi = {
   upsertKpis: (id: number, kpis: Partial<ClientKpi>[]) =>
     api.put<ClientKpi[]>(`/clients/${id}/kpis`, { kpis }).then(r => r.data),
   seedMock: (id: number) => api.post(`/ingestion/${id}/meta-ads/mock`).then(r => r.data),
-  syncMetaAds: (id: number) => api.post(`/ingestion/${id}/meta-ads/mock`).then(r => r.data),
+  syncMetaAds: (id: number) => api.post(`/ingestion/${id}/meta-ads/sync`).then(r => r.data),
   syncRdStation: (id: number) => api.post(`/ingestion/${id}/rd-station/sync`).then(r => r.data),
   checkAlerts: (id: number) => api.post(`/clients/${id}/alerts/check`).then(r => r.data),
 };
