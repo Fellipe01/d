@@ -37,10 +37,15 @@ export default function FunnelPage() {
     { label: 'Vendas', value: f.sales, color: '#059669' },
   ];
 
+  // Calculate rates from totals (not stored averages which are mathematically wrong)
+  const leadToMql = f.leads > 0 ? (f.mql / f.leads) * 100 : 0;
+  const mqlToSql  = f.mql > 0  ? (f.sql / f.mql)  * 100 : 0;
+  const sqlToSale = f.sql > 0  ? (f.sales / f.sql) * 100 : 0;
+
   const convRates = [
-    { label: 'Lead → MQL', value: f.avg_lead_to_mql || 0 },
-    { label: 'MQL → SQL', value: f.avg_mql_to_sql || 0 },
-    { label: 'SQL → Venda', value: f.avg_sql_to_sale || 0 },
+    { label: 'Lead → MQL', value: leadToMql },
+    { label: 'MQL → SQL',  value: mqlToSql },
+    { label: 'SQL → Venda', value: sqlToSale },
   ];
 
   return (
@@ -73,10 +78,10 @@ export default function FunnelPage() {
       {/* Costs per stage */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Custo por Lead', value: fmtCurrency(f.avg_cost_per_mql / (f.avg_lead_to_mql / 100 || 1)) },
-          { label: 'Custo por MQL', value: fmtCurrency(f.avg_cost_per_mql || 0) },
-          { label: 'Custo por SQL', value: fmtCurrency(f.avg_cost_per_sql || 0) },
-          { label: 'Custo por Venda', value: fmtCurrency(f.avg_cost_per_sale || 0) },
+          { label: 'Custo por Lead',  value: fmtCurrency(f.cost_per_lead  || 0) },
+          { label: 'Custo por MQL',   value: fmtCurrency(f.cost_per_mql   || 0) },
+          { label: 'Custo por SQL',   value: fmtCurrency(f.cost_per_sql   || 0) },
+          { label: 'Custo por Venda', value: fmtCurrency(f.cost_per_sale  || 0) },
         ].map(item => (
           <Card key={item.label} className="!p-0">
             <div className="p-4 text-center">

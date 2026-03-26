@@ -19,17 +19,13 @@ router.get('/clients/:id/funnel', async (req, res, next) => {
 
     const { data: rows, error } = await supabase
       .from('crm_metrics')
-      .select('leads,mql,sql_count,sales,revenue,cost_per_mql,cost_per_sql,cost_per_sale,lead_to_mql_rate,mql_to_sql_rate,sql_to_sale_rate')
+      .select('leads,mql,sql_count,sales,revenue')
       .eq('client_id', clientId)
       .gte('date', range.start)
       .lte('date', range.end);
     if (error) throw error;
 
-    type CrmRow = {
-      leads: number; mql: number; sql_count: number; sales: number; revenue: number;
-      cost_per_mql: number; cost_per_sql: number; cost_per_sale: number;
-      lead_to_mql_rate: number; mql_to_sql_rate: number; sql_to_sale_rate: number;
-    };
+    type CrmRow = { leads: number; mql: number; sql_count: number; sales: number; revenue: number };
 
     const totals = ((rows || []) as CrmRow[]).reduce(
       (acc, row) => ({
@@ -38,30 +34,39 @@ router.get('/clients/:id/funnel', async (req, res, next) => {
         sql: acc.sql + (row.sql_count || 0),
         sales: acc.sales + (row.sales || 0),
         revenue: acc.revenue + (row.revenue || 0),
-        avg_cost_per_mql_sum: acc.avg_cost_per_mql_sum + (row.cost_per_mql || 0),
-        avg_cost_per_sql_sum: acc.avg_cost_per_sql_sum + (row.cost_per_sql || 0),
-        avg_cost_per_sale_sum: acc.avg_cost_per_sale_sum + (row.cost_per_sale || 0),
-        avg_lead_to_mql_sum: acc.avg_lead_to_mql_sum + (row.lead_to_mql_rate || 0),
-        avg_mql_to_sql_sum: acc.avg_mql_to_sql_sum + (row.mql_to_sql_rate || 0),
-        avg_sql_to_sale_sum: acc.avg_sql_to_sale_sum + (row.sql_to_sale_rate || 0),
-        count: acc.count + 1,
       }),
-      { leads: 0, mql: 0, sql: 0, sales: 0, revenue: 0, avg_cost_per_mql_sum: 0, avg_cost_per_sql_sum: 0, avg_cost_per_sale_sum: 0, avg_lead_to_mql_sum: 0, avg_mql_to_sql_sum: 0, avg_sql_to_sale_sum: 0, count: 0 }
+      { leads: 0, mql: 0, sql: 0, sales: 0, revenue: 0 }
     );
 
-    const n = totals.count || 1;
+    // Get total Meta Ads spend in the same period to compute cost metrics
+    const { data: campaigns } = await supabase
+      .from('campaigns')
+      .select('id')
+      .eq('client_id', clientId);
+    const campaignIds = (campaigns || []).map((c: { id: number }) => c.id);
+
+    let totalSpend = 0;
+    if (campaignIds.length) {
+      const { data: metaRows } = await supabase
+        .from('metrics_daily')
+        .select('spend')
+        .eq('entity_type', 'campaign')
+        .in('entity_id', campaignIds)
+        .gte('date', range.start)
+        .lte('date', range.end);
+      totalSpend = ((metaRows || []) as { spend: number }[]).reduce((s, r) => s + (r.spend || 0), 0);
+    }
+
     res.json({
       leads: totals.leads,
       mql: totals.mql,
       sql: totals.sql,
       sales: totals.sales,
       revenue: totals.revenue,
-      avg_cost_per_mql: totals.avg_cost_per_mql_sum / n,
-      avg_cost_per_sql: totals.avg_cost_per_sql_sum / n,
-      avg_cost_per_sale: totals.avg_cost_per_sale_sum / n,
-      avg_lead_to_mql: totals.avg_lead_to_mql_sum / n,
-      avg_mql_to_sql: totals.avg_mql_to_sql_sum / n,
-      avg_sql_to_sale: totals.avg_sql_to_sale_sum / n,
+      cost_per_lead:  totals.leads > 0 ? totalSpend / totals.leads : 0,
+      cost_per_mql:   totals.mql   > 0 ? totalSpend / totals.mql   : 0,
+      cost_per_sql:   totals.sql   > 0 ? totalSpend / totals.sql   : 0,
+      cost_per_sale:  totals.sales > 0 ? totalSpend / totals.sales : 0,
       period: range,
     });
   } catch (e) { next(e); }
