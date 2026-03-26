@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { seedMockData } from './adapters/meta-ads.mock';
 import { syncMetaAdsReal } from './adapters/meta-ads.adapter';
+import { syncRdStationReal } from './adapters/rd-station.adapter';
 import { supabase } from '../../config/supabase';
 import { env } from '../../config/env';
 
@@ -33,11 +34,9 @@ router.post('/ingestion/:clientId/meta-ads/sync', async (req, res, next) => {
 router.post('/ingestion/:clientId/rd-station/sync', async (req, res, next) => {
   try {
     const clientId = Number(req.params.clientId);
-    // Placeholder: RD Station real integration reads rdstation_token from client
-    // and pulls deals/leads into crm_metrics using stage config (rd_mql_stage etc.)
-    const now = new Date().toISOString();
-    await supabase.from('clients').update({ last_rd_sync_at: now }).eq('id', clientId);
-    res.json({ message: 'RD Station sync triggered', synced_at: now });
+    await syncRdStationReal(clientId);
+    await supabase.from('clients').update({ last_rd_sync_at: new Date().toISOString() }).eq('id', clientId);
+    res.json({ message: 'RD Station sync complete', synced_at: new Date().toISOString() });
   } catch (e) { next(e); }
 });
 
