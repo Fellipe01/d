@@ -151,10 +151,10 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
             <p className="text-xs text-gray-400 mb-3">Informe o nome exato do campo personalizado no RD Station para cada variável. Varia por conta de cliente.</p>
             <div className="space-y-2">
               <div>
-                <label className="text-sm font-medium text-gray-700">Campo: Fonte</label>
+                <label className="text-sm font-medium text-gray-700">Valor do Campo "Fonte"</label>
                 <input value={form.rd_fonte_field} onChange={e => setForm(f => ({...f, rd_fonte_field: e.target.value}))}
-                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: fonte, utm_source, cf_fonte" />
-                <p className="text-xs text-gray-400 mt-0.5">Variável que indexa a origem (Facebook/Meta)</p>
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="ex: Meta/Ads, Facebook, Meta Ads" />
+                <p className="text-xs text-gray-400 mt-0.5">Valor que aparece no campo "Fonte" dos deals vindos do Meta Ads</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Campo: Campanha do Anúncio</label>

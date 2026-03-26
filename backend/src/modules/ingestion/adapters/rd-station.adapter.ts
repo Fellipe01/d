@@ -134,29 +134,22 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   // Fetch all deals created in the last 90 days
   const allDeals = await rdGetAllDeals(cfg.rdstation_token, since, until);
 
-  // Filter by fonte field if configured.
-  // rd_fonte_field can be either:
-  //   - A field NAME: filter deals that have any value in that field
-  //   - A field VALUE (e.g. "Meta/Ads"): filter deals where ANY custom field value contains it
+  // Filter deals where the "Fonte" field value matches the configured rd_fonte_field value
+  // The field is always named "Fonte" in RD Station; rd_fonte_field stores the expected VALUE (e.g. "Meta/Ads")
   let deals = allDeals;
   if (cfg.rd_fonte_field) {
-    const fonteConfig = cfg.rd_fonte_field.toLowerCase();
+    const expectedFonte = cfg.rd_fonte_field.toLowerCase();
     deals = allDeals.filter(d => {
-      const fields = d.deal_custom_fields ?? [];
-      // Check if any custom field has a value matching the configured fonte
-      return fields.some(f =>
-        f.value?.toLowerCase().includes(fonteConfig) ||
-        fonteConfig.includes(f.value?.toLowerCase() ?? '')
-      );
+      const fonteValue = getCustomField(d, 'Fonte').toLowerCase();
+      return fonteValue.includes(expectedFonte) || expectedFonte.includes(fonteValue) && fonteValue !== '';
     });
-    // If filter is too strict (0 results), fall back to all deals to avoid empty sync
     if (deals.length === 0) {
-      console.warn(`[RD] Fonte filter "${cfg.rd_fonte_field}" matched 0 deals — using all deals as fallback`);
+      console.warn(`[RD] "Fonte" = "${cfg.rd_fonte_field}" matched 0 deals — using all deals as fallback`);
       deals = allDeals;
     }
   }
 
-  console.log(`[RD] Fetched ${allDeals.length} deals, ${deals.length} after fonte filter for client ${clientId}`);
+  console.log(`[RD] Fetched ${allDeals.length} deals, ${deals.length} with Fonte="${cfg.rd_fonte_field}" for client ${clientId}`);
 
   if (!deals.length) return;
 
