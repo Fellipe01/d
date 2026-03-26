@@ -114,6 +114,9 @@ function getAction(actions: MetaInsight['actions'], type: string): number {
 
 const syncInProgress = new Set<number>();
 
+// Global queue: only 1 Meta sync runs at a time to avoid shared rate limit exhaustion
+let metaQueue: Promise<void> = Promise.resolve();
+
 export async function syncMetaAdsReal(clientId: number): Promise<void> {
   if (syncInProgress.has(clientId)) {
     console.log(`[Meta] Client ${clientId} sync already in progress, skipping`);
@@ -121,11 +124,16 @@ export async function syncMetaAdsReal(clientId: number): Promise<void> {
   }
   syncInProgress.add(clientId);
 
-  try {
-    await _syncMetaAdsReal(clientId);
-  } finally {
-    syncInProgress.delete(clientId);
-  }
+  // Chain onto global queue so concurrent requests run sequentially
+  metaQueue = metaQueue.then(async () => {
+    try {
+      await _syncMetaAdsReal(clientId);
+    } finally {
+      syncInProgress.delete(clientId);
+    }
+  });
+
+  return metaQueue;
 }
 
 async function _syncMetaAdsReal(clientId: number): Promise<void> {
@@ -149,13 +157,14 @@ async function _syncMetaAdsReal(clientId: number): Promise<void> {
   const since = toISODate(subDays(today, 89));
   const until = toISODate(today);
 
-  // ── 1. Fetch campaigns ────────────────────────────────────────────────────
+  // ── 1. Fetch only ACTIVE campaigns — drastically reduces API calls for large accounts
   const metaCampaigns = await graphGetAll(`/${adAccountId}/campaigns`, {
     fields: 'id,name,status,objective',
+    effective_status: '["ACTIVE"]',
     limit: '100',
   }) as MetaCampaign[];
 
-  console.log(`[Meta] Found ${metaCampaigns.length} campaigns`);
+  console.log(`[Meta] Found ${metaCampaigns.length} active campaigns`);
 
   for (const mc of metaCampaigns) {
     // Upsert campaign
