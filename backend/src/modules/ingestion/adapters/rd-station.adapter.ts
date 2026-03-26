@@ -137,7 +137,7 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
 
   if (!deals.length) return;
 
-  // Fetch campaigns for this client to match by name
+  // Fetch campaigns and creatives for this client to match by name
   const { data: campaigns } = await supabase
     .from('campaigns')
     .select('id, name, external_id')
@@ -145,10 +145,22 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
 
   const campaignList = campaigns ?? [];
 
+  // Fetch all creatives for matching by rd_criativo_field
+  const { data: creatives } = await supabase
+    .from('creatives')
+    .select('id, name, ad_set_id')
+    .in('ad_set_id',
+      campaignList.length
+        ? (await supabase.from('ad_sets').select('id').in('campaign_id', campaignList.map(c => c.id))).data?.map((a: { id: number }) => a.id) ?? []
+        : []
+    );
+  const creativeList = creatives ?? [];
+
   // ── Aggregate deals by date + campaign ────────────────────────────────────
   type DayAgg = {
     client_id: number;
     campaign_id: number | null;
+    creative_id: number | null;
     date: string;
     leads: number;
     mql: number;
@@ -162,6 +174,7 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   for (const deal of deals) {
     const date = toISODate(new Date(deal.created_at));
     const campaignName = getCustomField(deal, cfg.rd_campanha_field);
+    const creativeName = getCustomField(deal, cfg.rd_criativo_field);
     const stageName = deal.deal_stage?.name ?? '';
 
     // Current position of this deal in the Kanban
@@ -177,10 +190,20 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
       campaignId = match?.id ?? null;
     }
 
-    const key = `${date}|${campaignId ?? 'null'}`;
+    // Match creative by name
+    let creativeId: number | null = null;
+    if (creativeName) {
+      const match = creativeList.find(c =>
+        c.name.toLowerCase().includes(creativeName.toLowerCase()) ||
+        creativeName.toLowerCase().includes(c.name.toLowerCase())
+      );
+      creativeId = match?.id ?? null;
+    }
+
+    const key = `${date}|${campaignId ?? 'null'}|${creativeId ?? 'null'}`;
 
     if (!aggMap.has(key)) {
-      aggMap.set(key, { client_id: clientId, campaign_id: campaignId, date, leads: 0, mql: 0, sql_count: 0, sales: 0, revenue: 0 });
+      aggMap.set(key, { client_id: clientId, campaign_id: campaignId, creative_id: creativeId, date, leads: 0, mql: 0, sql_count: 0, sales: 0, revenue: 0 });
     }
 
     const agg = aggMap.get(key)!;
