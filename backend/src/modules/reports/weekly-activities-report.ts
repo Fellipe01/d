@@ -58,7 +58,7 @@ export async function generateWeeklyActivitiesReport(
 
   // Agrupa por tipo
   const byType = new Map<string, typeof list>();
-  for (const a of list as Array<{ id: number; activity_type: string; description: string; executed_at: string; executed_by: string }>) {
+  for (const a of list as Array<{ id: number; activity_type: string; description: string; executed_at: string; executed_by: string; campaign_id: number | null; creative_id: number | null }>) {
     const group = byType.get(a.activity_type) ?? [];
     group.push(a);
     byType.set(a.activity_type, group);
