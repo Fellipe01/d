@@ -251,6 +251,11 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
     const agg = aggMap.get(key)!;
     agg.leads++;
 
+    // Log todos os deals perdidos para diagnóstico
+    if (deal.win === false) {
+      console.log(`[RD] Perdido: "${deal.name}" | estágio: "${stageName}" | pos: ${dealPos}`);
+    }
+
     // Determine deal's funnel level using position map (primary) or prefix hierarchy (fallback)
     let dealLevel = dealFunnelLevel(stageName, dealPos, prefixRank);
     const mqlLevel  = configuredLevel(mqlPos, mqlPrefix, prefixRank);
