@@ -304,8 +304,7 @@ async function syncInsights(
     insights = await graphGetAll(`/${metaId}/insights`, {
       fields,
       time_increment: '1',
-      since,
-      until,
+      time_range: JSON.stringify({ since, until }),
       limit: '100',
     }) as MetaInsight[];
   } catch (err) {
