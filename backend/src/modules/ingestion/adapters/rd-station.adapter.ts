@@ -161,7 +161,9 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
       return fonteValue.includes(expectedFonte) || expectedFonte.includes(fonteValue) && fonteValue !== '';
     });
     if (deals.length === 0) {
-      console.warn(`[RD] "Fonte" = "${cfg.rd_fonte_field}" matched 0 deals — using all deals as fallback`);
+      // Log valores distintos do campo Fonte para diagnóstico
+      const fonteValues = [...new Set(allDeals.map(d => getCustomField(d, 'Fonte')).filter(Boolean))];
+      console.warn(`[RD] "Fonte" = "${cfg.rd_fonte_field}" matched 0 deals. Valores encontrados: ${JSON.stringify(fonteValues)}`);
       deals = allDeals;
     }
   }
