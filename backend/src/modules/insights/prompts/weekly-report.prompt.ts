@@ -105,18 +105,27 @@ ${creativesTable || 'Dados insuficientes de criativos.'}
 ${alertsSection}
 
 ---
-TAREFA: Gere uma análise completa de desempenho para este cliente considerando o tipo de relatório (${typeLabel}).
+${reportType === 'manual' ? `TAREFA: Gere um resumo rápido do desempenho desta semana para este cliente.
 
-Para relatório de segunda-feira: foque em resumo da semana anterior, o que funcionou, o que não funcionou, e recomendações para a próxima semana.
-Para relatório de quarta-feira: foque no que está chamando atenção na semana atual, sinais de saturação, criativos em destaque, e otimizações recomendadas imediatamente.
-Para relatório de sexta-feira: liste as atividades executadas pela assessoria durante a semana e mostre o impacto de cada ação nos resultados.
+Seja direto e conciso. Inclua apenas:
+1. Resumo executivo (máximo 2 frases)
+2. Principais números do período (o que se destacou positiva ou negativamente)
+3. Top criativos da semana
+4. Análise do funil se houver dados de CRM
+5. Até 3 próximos passos prioritários
+6. Classificação do impacto geral (crítico/alto/médio/baixo)
+
+Não faça comparação temporal. Foque apenas no período informado.` : `TAREFA: Gere uma análise completa de desempenho para este cliente considerando o tipo de relatório (${typeLabel}).
+
+Para relatório de quarta-feira: aplique obrigatoriamente a comparação temporal 7d vs 14d vs 30d conforme as regras do system prompt. Foque no que está chamando atenção na semana atual, sinais de saturação, criativos em destaque, e otimizações recomendadas imediatamente.
 
 Inclua obrigatoriamente:
 1. Resumo executivo (máximo 3 frases)
-2. Análise de desempenho de mídia
-3. Análise de criativos com diagnóstico de saturação
-4. Análise do funil (se houver dados de CRM)
-5. Fatores de risco
-6. Próximos passos priorizados (numerados, específicos, com impacto estimado)
-7. Classificação do impacto geral (crítico/alto/médio/baixo)`;
+2. Evolução (7d vs 14d vs 30d)
+3. Análise de desempenho de mídia por tipo de campanha
+4. Análise de criativos com diagnóstico de saturação
+5. Análise do funil (se houver dados de CRM)
+6. Fatores de risco
+7. Próximos passos priorizados (numerados, específicos, com impacto estimado)
+8. Classificação do impacto geral (crítico/alto/médio/baixo)`}`;
 }
