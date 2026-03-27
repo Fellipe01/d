@@ -252,10 +252,30 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
     agg.leads++;
 
     // Determine deal's funnel level using position map (primary) or prefix hierarchy (fallback)
-    const dealLevel = dealFunnelLevel(stageName, dealPos, prefixRank);
+    let dealLevel = dealFunnelLevel(stageName, dealPos, prefixRank);
     const mqlLevel  = configuredLevel(mqlPos, mqlPrefix, prefixRank);
     const sqlLevel  = configuredLevel(sqlPos, sqlPrefix, prefixRank);
     const vendaLevel = configuredLevel(vendaPos, vendaPrefix, prefixRank);
+
+    // For lost deals (win=false) whose current stage is a terminal "Perdido/Perdida" stage
+    // (not found in the order map → dealPos=-1), attempt to infer the highest funnel level
+    // reached by matching the stage name against the configured MQL/SQL/Venda stage names.
+    // This happens because RD Station moves lost deals to a terminal pipeline stage that
+    // has no position in the Kanban order.
+    if (deal.win === false && dealPos === -1 && stageName) {
+      const sl = stageName.toLowerCase();
+      const inferredLevel = inferLostDealLevel(
+        sl, cfg.rd_mql_stage, cfg.rd_sql_stage, cfg.rd_venda_stage,
+        mqlPos, sqlPos, vendaPos, mqlPrefix, sqlPrefix, vendaPrefix, prefixRank,
+      );
+      if (inferredLevel !== null) {
+        dealLevel = inferredLevel;
+        console.log(`[RD] Lost deal "${deal.name}" stage="${stageName}" → inferred level ${dealLevel}`);
+      } else {
+        // Could not infer level — deal may have been lost before reaching MQL
+        console.log(`[RD] Lost deal "${deal.name}" stage="${stageName}" — level unknown, counting as Lead only`);
+      }
+    }
 
     if (mqlLevel !== null && (dealLevel >= mqlLevel || deal.win)) {
       agg.mql++;
@@ -353,6 +373,31 @@ function configuredLevel(pos: number | null, prefix: string, prefixRank: Record<
   if (pos !== null) return pos;
   if (!prefix) return null;
   return prefixRank[prefix] ?? null;
+}
+
+// Infers the funnel level of a lost deal whose current stage is a terminal "Perdido" stage
+// (not found in the order map). Checks if the stage name contains any part of the configured
+// MQL/SQL/Venda stage names, then falls back to prefix rank.
+function inferLostDealLevel(
+  stageLower: string,
+  mqlStage: string | null, sqlStage: string | null, vendaStage: string | null,
+  mqlPos: number | null, sqlPos: number | null, vendaPos: number | null,
+  mqlPrefix: string, sqlPrefix: string, vendaPrefix: string,
+  prefixRank: Record<string, number>,
+): number | null {
+  // Check if the stage name matches any configured stage (partial, case-insensitive)
+  const matches = (configured: string | null) => {
+    if (!configured) return false;
+    const cl = configured.toLowerCase();
+    return stageLower.includes(cl) || cl.includes(stageLower);
+  };
+  if (vendaStage && matches(vendaStage)) return configuredLevel(vendaPos, vendaPrefix, prefixRank);
+  if (sqlStage   && matches(sqlStage))   return configuredLevel(sqlPos,   sqlPrefix,   prefixRank);
+  if (mqlStage   && matches(mqlStage))   return configuredLevel(mqlPos,   mqlPrefix,   prefixRank);
+  // Try prefix rank on the terminal stage name itself
+  const prefix = extractPrefix(stageLower);
+  const rank = prefixRank[prefix];
+  return rank !== undefined ? rank : null;
 }
 
 function getCustomField(deal: RdDeal, fieldLabel: string | null): string {

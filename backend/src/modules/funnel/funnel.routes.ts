@@ -22,8 +22,7 @@ router.get('/clients/:id/funnel', async (req, res, next) => {
       .select('leads,mql,sql_count,sales,revenue')
       .eq('client_id', clientId)
       .gte('date', range.start)
-      .lte('date', range.end)
-      .not('campaign_id', 'is', null);
+      .lte('date', range.end);
     if (error) throw error;
 
     type CrmRow = { leads: number; mql: number; sql_count: number; sales: number; revenue: number };
