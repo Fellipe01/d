@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { supabase } from '../config/supabase';
 import { generateInsight } from '../modules/insights/insights.service';
+import { generateWeeklyCampaignReport } from '../modules/reports/weekly-campaign-report';
 import { checkAndCreateAlerts } from '../modules/alerts/alerts.repository';
 import { lastWeekRange, currentWeekRange } from '../shared/utils/date';
 
@@ -24,14 +25,23 @@ async function runReports(type: 'weekly_mon' | 'weekly_wed' | 'weekly_fri'): Pro
 
   for (const clientId of clientIds) {
     try {
-      const insight = await generateInsight(clientId, range.start, range.end, type, 'scheduled');
+      let content: string;
+
+      if (type === 'weekly_mon') {
+        // Segunda-feira: relatório de campanhas sem IA
+        content = await generateWeeklyCampaignReport(clientId, range.start, range.end);
+      } else {
+        // Quarta e sexta: insights com IA
+        const insight = await generateInsight(clientId, range.start, range.end, type, 'scheduled');
+        content = insight.content;
+      }
 
       const { error } = await supabase.from('reports').insert({
         client_id: clientId,
         report_type: type,
         period_start: range.start,
         period_end: range.end,
-        content: insight.content,
+        content,
         status: 'published',
       });
       if (error) throw error;

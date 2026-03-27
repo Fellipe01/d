@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../../config/supabase';
 import { generateInsight } from '../insights/insights.service';
+import { generateWeeklyCampaignReport } from './weekly-campaign-report';
 import { lastWeekRange, currentWeekRange } from '../../shared/utils/date';
 import { NotFoundError } from '../../shared/errors';
 
@@ -38,19 +39,24 @@ router.post('/clients/:id/reports/generate', async (req, res, next) => {
     const type = report_type || 'manual';
 
     const range = type === 'weekly_mon' ? lastWeekRange() : currentWeekRange();
+    const clientId = Number(req.params.id);
 
-    const insight = await generateInsight(
-      Number(req.params.id), range.start, range.end, type, 'scheduled'
-    );
+    let content: string;
+    if (type === 'weekly_mon') {
+      content = await generateWeeklyCampaignReport(clientId, range.start, range.end);
+    } else {
+      const insight = await generateInsight(clientId, range.start, range.end, type, 'scheduled');
+      content = insight.content;
+    }
 
     const { data, error } = await supabase
       .from('reports')
       .insert({
-        client_id: Number(req.params.id),
+        client_id: clientId,
         report_type: type,
         period_start: range.start,
         period_end: range.end,
-        content: insight.content,
+        content,
         status: 'published',
       })
       .select()
