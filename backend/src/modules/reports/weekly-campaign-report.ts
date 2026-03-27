@@ -13,7 +13,17 @@ function detectType(objective: string | null): CampType {
   return 'other';
 }
 
-function typeLabel(t: CampType): string {
+// Extrai tag entre colchetes do nome da campanha, ex: "Lima [FORMS] - Tráfego" → "FORMS"
+function extractNameTag(campName: string): string | null {
+  const match = campName.match(/\[([^\]]+)\]/);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function typeLabel(campName: string, t: CampType): string {
+  // Prioridade: tag do nome da campanha
+  const nameTag = extractNameTag(campName);
+  if (nameTag) return nameTag;
+  // Fallback pelo tipo detectado
   if (t === 'leads')    return 'FORMS';
   if (t === 'whatsapp') return 'WPP';
   if (t === 'traffic')  return 'VP';
@@ -112,7 +122,7 @@ export async function generateWeeklyCampaignReport(
     if (!m || m.spend === 0) continue; // ignora campanhas sem investimento no período
 
     const tipo = detectType(camp.objective);
-    const tag  = typeLabel(tipo);
+    const tag  = typeLabel(camp.name, tipo);
     const header = tag
       ? `Relatório de Campanha ${clientName} [${tag}] – (${period})`
       : `Relatório de Campanha ${clientName} – (${period})`;
