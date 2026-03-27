@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { supabase } from '../config/supabase';
 import { generateInsight } from '../modules/insights/insights.service';
 import { generateWeeklyCampaignReport } from '../modules/reports/weekly-campaign-report';
+import { generateWeeklyActivitiesReport, archivePreviousWeekActivities } from '../modules/reports/weekly-activities-report';
 import { checkAndCreateAlerts } from '../modules/alerts/alerts.repository';
 import { lastWeekRange, currentWeekRange } from '../shared/utils/date';
 
@@ -30,8 +31,12 @@ async function runReports(type: 'weekly_mon' | 'weekly_wed' | 'weekly_fri'): Pro
       if (type === 'weekly_mon') {
         // Segunda-feira: relatório de campanhas sem IA
         content = await generateWeeklyCampaignReport(clientId, range.start, range.end);
+      } else if (type === 'weekly_fri') {
+        // Sexta-feira: lista de atividades da semana sem IA + arquiva semana anterior
+        content = await generateWeeklyActivitiesReport(clientId, range.start, range.end);
+        await archivePreviousWeekActivities(clientId, range.start);
       } else {
-        // Quarta e sexta: insights com IA
+        // Quarta-feira e manual: insights com IA
         const insight = await generateInsight(clientId, range.start, range.end, type, 'scheduled');
         content = insight.content;
       }

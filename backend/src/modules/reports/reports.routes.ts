@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../../config/supabase';
 import { generateInsight } from '../insights/insights.service';
 import { generateWeeklyCampaignReport } from './weekly-campaign-report';
+import { generateWeeklyActivitiesReport, archivePreviousWeekActivities } from './weekly-activities-report';
 import { lastWeekRange, currentWeekRange } from '../../shared/utils/date';
 import { NotFoundError } from '../../shared/errors';
 
@@ -44,6 +45,9 @@ router.post('/clients/:id/reports/generate', async (req, res, next) => {
     let content: string;
     if (type === 'weekly_mon') {
       content = await generateWeeklyCampaignReport(clientId, range.start, range.end);
+    } else if (type === 'weekly_fri') {
+      content = await generateWeeklyActivitiesReport(clientId, range.start, range.end);
+      await archivePreviousWeekActivities(clientId, range.start);
     } else {
       const insight = await generateInsight(clientId, range.start, range.end, type, 'scheduled');
       content = insight.content;
