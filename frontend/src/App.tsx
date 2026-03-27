@@ -10,6 +10,7 @@ import ReportsPage from './pages/Reports/ReportsPage';
 import AlertsPage from './pages/Alerts/AlertsPage';
 import ActivitiesPage from './pages/Activities/ActivitiesPage';
 import TasksPage from './pages/Tasks/TasksPage';
+import AdminPage from './pages/Admin/AdminPage';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/activities" element={<ActivitiesPage />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

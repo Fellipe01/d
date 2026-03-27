@@ -11,6 +11,7 @@ import activitiesRouter from './modules/activities/activities.routes';
 import funnelRouter from './modules/funnel/funnel.routes';
 import reportsRouter from './modules/reports/reports.routes';
 import tasksRouter from './modules/tasks/tasks.routes';
+import adminRouter from './modules/admin/admin.routes';
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/api', activitiesRouter);
 app.use('/api', funnelRouter);
 app.use('/api', reportsRouter);
 app.use('/api', tasksRouter);
+app.use('/api', adminRouter);
 
 app.use(errorHandler);
 
