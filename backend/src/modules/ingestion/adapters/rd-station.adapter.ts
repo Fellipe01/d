@@ -214,6 +214,9 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
         creativeName.toLowerCase().includes(c.name.toLowerCase())
       );
       creativeId = match?.id ?? null;
+      if (!match) {
+        console.warn(`[RD] Deal "${deal.name}" — criativo "${creativeName}" não encontrou match (campo: ${cfg.rd_criativo_field})`);
+      }
     }
 
     const key = `${date}|${campaignId ?? 'null'}|${creativeId ?? 'null'}`;
