@@ -33,6 +33,7 @@ interface CreativeRow {
   id: number;
   name: string;
   type: string;
+  campaign_id: number | null;
   spend: number;
   impressions: number;
   clicks: number;
@@ -396,9 +397,45 @@ export default function CampaignsPage() {
   const funnelCampMap = new Map<number, FunnelRow>(
     (funnelByCampaign as FunnelRow[]).map(f => [f.campaign_id!, f])
   );
-  const funnelCreativeMap = new Map<number, FunnelRow>(
+
+  // Build creative funnel map by proportional distribution:
+  // If crm_metrics has no creative_id attribution, distribute campaign funnel
+  // by each creative's lead share within the campaign.
+  const funnelCreativeMapDirect = new Map<number, FunnelRow>(
     (funnelByCreative as FunnelRow[]).map(f => [f.creative_id!, f])
   );
+
+  const creativesTyped = topCreatives as CreativeRow[];
+
+  // Group creatives by campaign_id and sum their leads
+  const campLeadTotals = new Map<number, number>();
+  for (const cr of creativesTyped) {
+    if (cr.campaign_id != null) {
+      campLeadTotals.set(cr.campaign_id, (campLeadTotals.get(cr.campaign_id) ?? 0) + (cr.leads || 0));
+    }
+  }
+
+  // Build final creative funnel map: direct attribution if available, else proportional
+  const funnelCreativeMap = new Map<number, FunnelRow>();
+  for (const cr of creativesTyped) {
+    if (funnelCreativeMapDirect.has(cr.id)) {
+      funnelCreativeMap.set(cr.id, funnelCreativeMapDirect.get(cr.id)!);
+    } else if (cr.campaign_id != null) {
+      const campFunnel = funnelCampMap.get(cr.campaign_id);
+      const totalLeads = campLeadTotals.get(cr.campaign_id) ?? 0;
+      const share = totalLeads > 0 ? (cr.leads || 0) / totalLeads : 0;
+      if (campFunnel && share > 0) {
+        funnelCreativeMap.set(cr.id, {
+          creative_id: cr.id,
+          leads: Math.round(campFunnel.leads * share),
+          mql:   Math.round(campFunnel.mql   * share),
+          sql:   Math.round(campFunnel.sql    * share),
+          sales: Math.round(campFunnel.sales  * share),
+          revenue: campFunnel.revenue * share,
+        });
+      }
+    }
+  }
 
   // Aggregate overall funnel totals from all campaigns
   const funnelTotals = (funnelByCampaign as FunnelRow[]).reduce(
