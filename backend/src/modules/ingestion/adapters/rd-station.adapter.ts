@@ -223,13 +223,19 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
       campaignId = match?.id ?? null;
     }
 
-    // Match creative by name
+    // Match creative by name — strip leading "ADxxx - " prefix before comparing
+    // so "AD002 - SOFREU ACIDENTE" matches "AD009 - SOFREU ACIDENTE" in Meta
     let creativeId: number | null = null;
     if (creativeName) {
-      const match = creativeList.find(c =>
-        c.name.toLowerCase().includes(creativeName.toLowerCase()) ||
-        creativeName.toLowerCase().includes(c.name.toLowerCase())
-      );
+      const stripPrefix = (s: string) => s.replace(/^AD\d+\s*[-–]\s*/i, '').toLowerCase().trim();
+      const needleStripped = stripPrefix(creativeName);
+      const match = creativeList.find(c => {
+        const haystackStripped = stripPrefix(c.name);
+        return c.name.toLowerCase() === creativeName.toLowerCase() // exact match first
+          || c.name.toLowerCase().includes(creativeName.toLowerCase())
+          || creativeName.toLowerCase().includes(c.name.toLowerCase())
+          || (needleStripped.length > 3 && (haystackStripped.includes(needleStripped) || needleStripped.includes(haystackStripped)));
+      });
       creativeId = match?.id ?? null;
       if (!match) {
         console.warn(`[RD] Deal "${deal.name}" — criativo "${creativeName}" não encontrou match (campo: ${cfg.rd_criativo_field})`);
@@ -274,14 +280,13 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
     sql_to_sale_rate: agg.sql_count > 0 ? (agg.sales / agg.sql_count) * 100 : 0,
   }));
 
-  // Delete existing rows for this client+period before inserting fresh data
-  // This prevents double-counting from multiple syncs or creative_id changes
+  // Delete ALL existing rows for this client before inserting fresh data.
+  // Using a date range caused off-by-one conflicts when deal dates fell just
+  // outside the window but rows from previous syncs still existed.
   const { error: delError } = await supabase
     .from('crm_metrics')
     .delete()
-    .eq('client_id', clientId)
-    .gte('date', since)
-    .lte('date', until);
+    .eq('client_id', clientId);
   if (delError) throw delError;
 
   // Insert fresh rows in batches
