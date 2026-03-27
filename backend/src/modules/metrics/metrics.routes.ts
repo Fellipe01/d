@@ -28,15 +28,31 @@ router.get('/clients/:id/metrics/timeseries', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// KPIs that accumulate over time and whose target should scale with the period
+const CUMULATIVE_KPI_NAMES = new Set(['leads', 'messages', 'clicks', 'impressions', 'followers']);
+
 router.get('/clients/:id/metrics/summary', async (req, res, next) => {
   try {
     const { start, end } = req.query as { start?: string; end?: string };
     const range = start && end ? { start, end } : defaultRange();
+
     const [metrics, kpis] = await Promise.all([
       repo.getClientMetrics(Number(req.params.id), range.start, range.end),
       findKpisByClientId(Number(req.params.id)),
     ]);
-    const results = evaluateAllKpis(metrics as unknown as Record<string, number>, kpis);
+
+    // Scale cumulative KPI targets proportionally to the selected date range
+    // target_value is always stored as a weekly (7-day) reference
+    const days = Math.max(1, Math.round(
+      (new Date(range.end).getTime() - new Date(range.start).getTime()) / 86400000
+    ) + 1);
+    const scaledKpis = kpis.map(k =>
+      CUMULATIVE_KPI_NAMES.has(k.kpi_name)
+        ? { ...k, target_value: (k.target_value / 7) * days }
+        : k
+    );
+
+    const results = evaluateAllKpis(metrics as unknown as Record<string, number>, scaledKpis);
     res.json({ metrics, kpi_results: results, period: range });
   } catch (e) { next(e); }
 });

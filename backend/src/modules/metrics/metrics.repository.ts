@@ -145,7 +145,17 @@ export async function getClientMetricsTimeseries(clientId: number, start: string
       byDate.set(row.date, { date: row.date, spend: row.spend || 0, impressions: row.impressions || 0, clicks: row.clicks || 0, leads: row.leads || 0 });
     }
   }
-  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Fill every calendar day in the range with zeros so chart shows no gaps
+  const filled: typeof byDate extends Map<string, infer V> ? V[] : never[] = [];
+  const cursor = new Date(start + 'T00:00:00Z');
+  const endDate = new Date(end + 'T00:00:00Z');
+  while (cursor <= endDate) {
+    const d = cursor.toISOString().split('T')[0];
+    filled.push(byDate.get(d) ?? { date: d, spend: 0, impressions: 0, clicks: 0, leads: 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return filled;
 }
 
 export async function getTopCreativesByClient(clientId: number, start: string, end: string, limit = 10) {
