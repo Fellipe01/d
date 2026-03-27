@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { env } from '../../config/env';
 import { supabase } from '../../config/supabase';
 import { findClientById, findKpisByClientId } from '../clients/clients.repository';
@@ -8,7 +8,7 @@ import { buildWeeklyReportPrompt, WeeklyReportContext } from './prompts/weekly-r
 import { SYSTEM_PROMPT } from './prompts/system-prompt';
 import { NotFoundError } from '../../shared/errors';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
 export interface Insight {
   id: number;
@@ -179,14 +179,16 @@ export async function generateInsight(
 
   const prompt = buildWeeklyReportPrompt(ctx);
 
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+  const message = await openai.chat.completions.create({
+    model: 'gpt-4o',
     max_tokens: 2048,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
+    ],
   });
 
-  const content = (message.content[0] as { text: string }).text;
+  const content = message.choices[0].message.content ?? '';
   const impactLevel = extractImpactLevel(content);
   const category = extractCategory(content);
   const summary = extractSummary(content);
