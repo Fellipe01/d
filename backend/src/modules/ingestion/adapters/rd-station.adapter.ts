@@ -20,6 +20,22 @@ async function rdGet(path: string, token: string, params: Record<string, string>
 }
 
 async function rdGetAllDeals(token: string, since: string, until: string): Promise<RdDeal[]> {
+  // Fetch open/won deals, then lost deals separately — RD Station API does not
+  // return lost (win=false) deals in the default listing without explicit filter.
+  const [open, lost] = await Promise.all([
+    rdGetDealsPage(token, since, until, {}),
+    rdGetDealsPage(token, since, until, { win: 'false' }),
+  ]);
+
+  // Merge, deduplicate by id
+  const byId = new Map<string, RdDeal>();
+  for (const d of [...open, ...lost]) byId.set(d.id, d);
+
+  console.log(`[RD] Raw fetch: ${open.length} open/won + ${lost.length} lost = ${byId.size} unique deals`);
+  return Array.from(byId.values());
+}
+
+async function rdGetDealsPage(token: string, since: string, until: string, extra: Record<string, string>): Promise<RdDeal[]> {
   const results: RdDeal[] = [];
   let page = 1;
   const pageSize = 200;
@@ -30,6 +46,7 @@ async function rdGetAllDeals(token: string, since: string, until: string): Promi
       limit: String(pageSize),
       'created_at[gte]': since,
       'created_at[lte]': until,
+      ...extra,
     }) as { deals: RdDeal[]; total?: number };
 
     const deals = data.deals ?? [];
