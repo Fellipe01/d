@@ -159,14 +159,17 @@ export async function getClientMetricsTimeseries(clientId: number, start: string
 }
 
 export async function getTopCreativesByClient(clientId: number, start: string, end: string, limit = 10) {
-  // Step 1: Get campaign IDs
+  // Step 1: Get campaign IDs and names
   const { data: campaigns, error: campErr } = await supabase
     .from('campaigns')
-    .select('id')
+    .select('id,name')
     .eq('client_id', clientId);
   if (campErr) throw campErr;
 
-  const campaignIds = (campaigns || []).map((c: { id: number }) => Number(c.id)).filter(id => !isNaN(id) && id > 0);
+  const campaignIds = (campaigns || []).map((c: { id: number; name: string }) => Number(c.id)).filter(id => !isNaN(id) && id > 0);
+  const campaignNameMap = new Map<number, string>(
+    (campaigns || []).map((c: { id: number; name: string }) => [Number(c.id), c.name])
+  );
   if (!campaignIds.length) return [];
 
   // Step 2: Get ad set IDs (with campaign_id to map creative → campaign)
@@ -209,7 +212,7 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
   type CreativeInfo = { id: number; name: string; type: string; status: string; thumbnail_url: string | null; ad_set_id: number };
   type CreativeAgg = {
     id: number; name: string; type: string; status: string; thumbnail_url: string | null;
-    campaign_id: number | null;
+    campaign_id: number | null; campaign_name: string | null;
     spend: number; impressions: number; clicks: number; leads: number;
     freq_sum: number; ctr_sum: number; cpl_sum: number; count: number;
   };
@@ -233,13 +236,15 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
     } else {
       const info = creativeMap.get(m.entity_id);
       if (!info) continue;
+      const campId = adSetCampMap.get(info.ad_set_id) ?? null;
       aggMap.set(m.entity_id, {
         id: m.entity_id,
         name: info.name,
         type: info.type,
         status: info.status,
         thumbnail_url: info.thumbnail_url,
-        campaign_id: adSetCampMap.get(info.ad_set_id) ?? null,
+        campaign_id: campId,
+        campaign_name: campId != null ? (campaignNameMap.get(campId) ?? null) : null,
         spend: m.spend || 0,
         impressions: m.impressions || 0,
         clicks: m.clicks || 0,
@@ -260,6 +265,7 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
       status: agg.status,
       thumbnail_url: agg.thumbnail_url,
       campaign_id: agg.campaign_id,
+      campaign_name: agg.campaign_name,
       spend: agg.spend,
       impressions: agg.impressions,
       clicks: agg.clicks,
