@@ -2,45 +2,78 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAppStore } from '../../store';
 import { metricsApi } from '../../api/metrics.api';
+import { clientsApi, type ClientKpi } from '../../api/clients.api';
 import Badge from '../../components/ui/Badge';
 import EmptyState from '../../components/ui/EmptyState';
 import { fmtCurrency, fmtPct, fmtNum } from '../../utils/formatters';
 
 // ---------------------------------------------------------------------------
-// Saturation logic
+// Health logic — combines saturation (frequency/CTR) + cost performance (KPI)
 // ---------------------------------------------------------------------------
 
-function saturationState(frequency: number, ctr: number) {
+type HealthState = {
+  borderClass: string;
+  badgeVariant: 'success' | 'warning' | 'danger';
+  label: string;
+  dotClass: string;
+};
+
+/** Severity rank: higher = worse */
+function severityRank(v: HealthState['badgeVariant']): number {
+  return v === 'danger' ? 2 : v === 'warning' ? 1 : 0;
+}
+
+function saturationHealth(frequency: number, ctr: number): HealthState {
   if (frequency >= 5.0 || (ctr < 0.5 && frequency >= 2.5)) {
-    return {
-      borderClass: 'border-l-danger-500',
-      badgeVariant: 'danger' as const,
-      label: 'Saturado',
-      dotClass: 'bg-danger-500',
-    };
+    return { borderClass: 'border-l-danger-500', badgeVariant: 'danger', label: 'Saturado', dotClass: 'bg-danger-500' };
   }
   if (frequency >= 3.5) {
-    return {
-      borderClass: 'border-l-warning-500',
-      badgeVariant: 'warning' as const,
-      label: 'Saturando',
-      dotClass: 'bg-warning-500',
-    };
+    return { borderClass: 'border-l-warning-500', badgeVariant: 'warning', label: 'Saturando', dotClass: 'bg-warning-500' };
   }
   if (frequency >= 2.5) {
-    return {
-      borderClass: 'border-l-yellow-400',
-      badgeVariant: 'warning' as const,
-      label: 'Atenção',
-      dotClass: 'bg-yellow-400',
-    };
+    return { borderClass: 'border-l-yellow-400', badgeVariant: 'warning', label: 'Atenção Freq.', dotClass: 'bg-yellow-400' };
   }
-  return {
-    borderClass: 'border-l-success-500',
-    badgeVariant: 'success' as const,
-    label: 'Saudável',
-    dotClass: 'bg-success-500',
-  };
+  return { borderClass: 'border-l-success-500', badgeVariant: 'success', label: 'Saudável', dotClass: 'bg-success-500' };
+}
+
+function costHealth(actualCost: number, kpis: ClientKpi[], kpiName: string): HealthState | null {
+  if (actualCost <= 0) return null;
+  const kpi = kpis.find(k => k.kpi_name === kpiName);
+  if (!kpi || !kpi.target_value) return null;
+
+  // lower_is_better: rawScore = target / actual (>1 = good)
+  const rawScore = kpi.target_value / actualCost;
+
+  if (rawScore < 0.6) {
+    return { borderClass: 'border-l-danger-500', badgeVariant: 'danger', label: 'Custo Alto', dotClass: 'bg-danger-500' };
+  }
+  if (rawScore < 0.8) {
+    return { borderClass: 'border-l-warning-500', badgeVariant: 'warning', label: 'Custo Elevado', dotClass: 'bg-warning-500' };
+  }
+  if (rawScore < 1.0) {
+    return { borderClass: 'border-l-yellow-400', badgeVariant: 'warning', label: 'Custo Limite', dotClass: 'bg-yellow-400' };
+  }
+  return { borderClass: 'border-l-success-500', badgeVariant: 'success', label: 'Saudável', dotClass: 'bg-success-500' };
+}
+
+function creativeHealth(
+  c: { frequency: number; ctr: number; cost_per_message: number; cpl: number; cost_per_video_view: number },
+  campaignType: CampaignType,
+  kpis: ClientKpi[],
+): HealthState {
+  const sat = saturationHealth(c.frequency, c.ctr);
+
+  let costKpiName: string | null = null;
+  let costValue = 0;
+  if (campaignType === 'WPP') { costKpiName = 'cost_per_message'; costValue = c.cost_per_message; }
+  else if (campaignType === 'VP') { costKpiName = 'cost_per_video_view'; costValue = c.cost_per_video_view; }
+  else if (campaignType === 'LEAD' || campaignType === 'FORM') { costKpiName = 'cpl'; costValue = c.cpl; }
+
+  const cost = costKpiName ? costHealth(costValue, kpis, costKpiName) : null;
+
+  // Return the worst of the two
+  if (cost && severityRank(cost.badgeVariant) > severityRank(sat.badgeVariant)) return cost;
+  return sat;
 }
 
 // ---------------------------------------------------------------------------
@@ -239,12 +272,18 @@ function CreativeCard({
   c,
   rank,
   campaignType,
+  kpis,
 }: {
   c: Creative;
   rank: number;
   campaignType: CampaignType;
+  kpis: ClientKpi[];
 }) {
-  const sat = saturationState(c.frequency || 0, c.ctr || 0);
+  const sat = creativeHealth(
+    { frequency: c.frequency || 0, ctr: c.ctr || 0, cost_per_message: c.cost_per_message || 0, cpl: c.cpl || 0, cost_per_video_view: c.cost_per_video_view || 0 },
+    campaignType,
+    kpis,
+  );
   const isLead = campaignType === 'LEAD' || campaignType === 'FORM';
   const isActive = !c.status || c.status === 'active';
   const gradient = thumbnailGradient(c.type);
@@ -400,6 +439,12 @@ export default function CreativesPage() {
     enabled: !!selectedClientId,
   });
 
+  const { data: kpis = [] } = useQuery({
+    queryKey: ['client-kpis', selectedClientId],
+    queryFn: () => clientsApi.getKpis(selectedClientId!),
+    enabled: !!selectedClientId,
+  });
+
   // ---- Guard states -------------------------------------------------------
 
   if (!selectedClientId) {
@@ -544,7 +589,7 @@ export default function CreativesPage() {
             <GroupHeader type={groupType} count={items.length} />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {items.map((c, i) => (
-                <CreativeCard key={c.id} c={c} rank={i + 1} campaignType={groupType} />
+                <CreativeCard key={c.id} c={c} rank={i + 1} campaignType={groupType} kpis={kpis} />
               ))}
             </div>
           </section>
