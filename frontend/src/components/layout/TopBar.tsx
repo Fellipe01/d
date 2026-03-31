@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { useAppStore } from '../../store';
@@ -5,27 +6,91 @@ import { clientsApi } from '../../api/clients.api';
 import { alertsApi } from '../../api/alerts.api';
 import { format, subDays } from 'date-fns';
 
+// ── Page title map ─────────────────────────────────────────────────────────────
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'Dashboard',
-  '/clients': 'Clientes',
-  '/campaigns': 'Campanhas',
-  '/creatives': 'Criativos',
-  '/funnel': 'Funil de Vendas',
-  '/insights': 'Insights',
-  '/reports': 'Relatórios',
-  '/alerts': 'Alertas',
-  '/activities': 'Atividades',
+  '/':            'Dashboard',
+  '/clients':     'Clientes',
+  '/campaigns':   'Campanhas',
+  '/creatives':   'Criativos',
+  '/funnel':      'Funil de Vendas',
+  '/insights':    'Insights',
+  '/reports':     'Relatórios',
+  '/alerts':      'Alertas',
+  '/activities':  'Atividades',
 };
 
 const RANGES = [
-  { label: '7 dias', days: 7 },
-  { label: '14 dias', days: 14 },
-  { label: '30 dias', days: 30 },
+  { label: '7d',  days: 7  },
+  { label: '14d', days: 14 },
+  { label: '30d', days: 30 },
 ];
 
-export default function TopBar() {
+// ── Inline SVG icons ──────────────────────────────────────────────────────────
+function HamburgerIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="6"  x2="21" y2="6"  />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+function BellIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+function ChevronDownIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+function DotsIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5"  cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </svg>
+  );
+}
+function CalendarIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8"  y1="2" x2="8"  y2="6" />
+      <line x1="3"  y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+function UserIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+interface TopBarProps {
+  /** Opens the mobile overlay drawer (hamburger tap on mobile) */
+  onOpenMobileDrawer: () => void;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
   const location = useLocation();
   const { selectedClientId, setSelectedClientId, dateRange, setDateRange } = useAppStore();
+
+  // Controls the "..." overflow panel on mobile
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
@@ -39,66 +104,237 @@ export default function TopBar() {
     refetchInterval: 60000,
   });
 
+  // Derive page title
   const title = Object.entries(PAGE_TITLES).find(([path]) =>
     location.pathname === path || location.pathname.startsWith(path + '/')
-  )?.[1] || 'DAE';
+  )?.[1] ?? 'DAE';
 
+  // Date range helpers
   function setRange(days: number) {
     setDateRange({
       start: format(subDays(new Date(), days), 'yyyy-MM-dd'),
-      end: format(new Date(), 'yyyy-MM-dd'),
+      end:   format(new Date(), 'yyyy-MM-dd'),
     });
   }
 
+  function activeRangeDays(): number | null {
+    for (const r of RANGES) {
+      if (format(subDays(new Date(), r.days), 'yyyy-MM-dd') === dateRange.start) {
+        return r.days;
+      }
+    }
+    return null;
+  }
+
+  const showDateRange = location.pathname !== '/creatives';
   const criticalCount = alerts.filter((a: { severity: string }) => a.severity === 'critical').length;
-  const warnCount = alerts.filter((a: { severity: string }) => a.severity === 'warning').length;
+  const warnCount     = alerts.filter((a: { severity: string }) => a.severity === 'warning').length;
+  const alertCount    = criticalCount + warnCount;
+  const hasAlerts     = !!selectedClientId && alertCount > 0;
+
+  // Currently selected client name (for the compact selector label)
+  const selectedClient = (clients as { id: number; name: string; status: string }[]).find(
+    c => c.id === selectedClientId
+  );
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between gap-4 sticky top-0 z-20">
-      <h1 className="text-lg font-semibold text-gray-800">{title}</h1>
+    <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-200/80 shadow-sm">
+      <div className="flex items-center gap-3 px-4 md:px-6 h-14 md:h-[60px]">
 
-      <div className="flex items-center gap-3">
-        {/* Date range — hidden on Creatives page (has its own range filter) */}
-        {location.pathname !== '/creatives' && (
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-            {RANGES.map(r => {
-              const active = format(subDays(new Date(), r.days), 'yyyy-MM-dd') === dateRange.start;
-              return (
-                <button
-                  key={r.days}
-                  onClick={() => setRange(r.days)}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${active ? 'bg-white shadow font-medium text-brand-600' : 'text-gray-500 hover:text-gray-800'}`}
-                >
-                  {r.label}
-                </button>
-              );
-            })}
+        {/* ── Left: hamburger (mobile) + page title ── */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {/* Hamburger — mobile only (opens drawer) */}
+          <button
+            onClick={onOpenMobileDrawer}
+            className="md:hidden flex items-center justify-center w-9 h-9 -ml-1 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors shrink-0"
+            aria-label="Abrir menu"
+          >
+            <HamburgerIcon size={20} />
+          </button>
+
+          <h1 className="text-base md:text-lg font-semibold text-gray-900 truncate leading-tight">
+            {title}
+          </h1>
+        </div>
+
+        {/* ── Right: controls group ── */}
+        <div className="flex items-center gap-2 shrink-0">
+
+          {/* ── Desktop controls (hidden on mobile) ── */}
+          <div className="hidden md:flex items-center gap-2">
+
+            {/* Date range pill */}
+            {showDateRange && (
+              <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1">
+                <span className="text-gray-400 pl-1.5 pr-0.5">
+                  <CalendarIcon size={13} />
+                </span>
+                {RANGES.map(r => {
+                  const isActive = activeRangeDays() === r.days;
+                  return (
+                    <button
+                      key={r.days}
+                      onClick={() => setRange(r.days)}
+                      className={`
+                        px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150
+                        ${isActive
+                          ? 'bg-white text-brand-700 shadow-sm ring-1 ring-gray-200'
+                          : 'text-gray-500 hover:text-gray-800 hover:bg-white/60'
+                        }
+                      `}
+                    >
+                      {r.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="w-px h-6 bg-gray-200" />
+
+            {/* Client selector */}
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+                <UserIcon size={13} />
+              </span>
+              <select
+                value={selectedClientId ?? ''}
+                onChange={e => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}
+                className="
+                  appearance-none pl-7 pr-7 py-1.5 text-sm
+                  border border-gray-200 rounded-lg bg-white text-gray-700
+                  focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
+                  hover:border-gray-300 transition-colors cursor-pointer
+                  min-w-[160px] max-w-[220px]
+                "
+              >
+                <option value="">Selecionar cliente</option>
+                {(clients as { id: number; name: string; status: string }[]).map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.status !== 'active' ? ` (${c.status})` : ''}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
+                <ChevronDownIcon size={13} />
+              </span>
+            </div>
           </div>
-        )}
 
-        {/* Client selector */}
-        <select
-          value={selectedClientId ?? ''}
-          onChange={e => setSelectedClientId(e.target.value ? Number(e.target.value) : null)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
-        >
-          <option value="">Selecionar cliente</option>
-          {clients.map((c: { id: number; name: string; status: string }) => (
-            <option key={c.id} value={c.id}>
-              {c.name} {c.status !== 'active' ? `(${c.status})` : ''}
-            </option>
-          ))}
-        </select>
+          {/* ── Alert bell (always visible when there are alerts) ── */}
+          {hasAlerts && (
+            <button
+              className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-gray-100 transition-colors"
+              title={`${alertCount} alerta${alertCount > 1 ? 's' : ''} ativo${alertCount > 1 ? 's' : ''}`}
+              aria-label={`${alertCount} alertas`}
+            >
+              <span className={criticalCount > 0 ? 'text-red-500' : 'text-yellow-500'}>
+                <BellIcon size={20} />
+              </span>
+              <span
+                className={`
+                  absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1
+                  text-[10px] font-bold flex items-center justify-center
+                  rounded-full text-white leading-none
+                  ${criticalCount > 0 ? 'bg-red-500' : 'bg-yellow-500'}
+                `}
+              >
+                {alertCount > 9 ? '9+' : alertCount}
+              </span>
+            </button>
+          )}
 
-        {/* Alert bell */}
-        {selectedClientId && (criticalCount > 0 || warnCount > 0) && (
-          <div className="relative">
-            <span className="text-xl">🔔</span>
-            <span className={`absolute -top-1 -right-1 text-xs font-bold w-4 h-4 flex items-center justify-center rounded-full text-white ${criticalCount > 0 ? 'bg-red-500' : 'bg-yellow-500'}`}>
-              {criticalCount + warnCount}
-            </span>
+          {/* ── Mobile "..." overflow button ── */}
+          <div className="relative md:hidden">
+            <button
+              onClick={() => setMobileControlsOpen(v => !v)}
+              className={`
+                flex items-center justify-center w-9 h-9 rounded-lg transition-colors
+                ${mobileControlsOpen ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}
+              `}
+              aria-label="Mais opções"
+            >
+              <DotsIcon size={18} />
+            </button>
+
+            {/* Mobile overflow panel */}
+            {mobileControlsOpen && (
+              <>
+                {/* Backdrop to close panel */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setMobileControlsOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 z-20 w-72 bg-white rounded-xl shadow-xl border border-gray-200/80 p-4 space-y-4">
+
+                  {/* Client selector in overflow panel */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                      Cliente
+                    </label>
+                    <select
+                      value={selectedClientId ?? ''}
+                      onChange={e => {
+                        setSelectedClientId(e.target.value ? Number(e.target.value) : null);
+                        setMobileControlsOpen(false);
+                      }}
+                      className="
+                        w-full text-sm border border-gray-200 rounded-lg px-3 py-2
+                        bg-white text-gray-700 focus:outline-none focus:ring-2
+                        focus:ring-brand-500 focus:border-transparent
+                      "
+                    >
+                      <option value="">Selecionar cliente</option>
+                      {(clients as { id: number; name: string; status: string }[]).map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}{c.status !== 'active' ? ` (${c.status})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedClient && (
+                      <p className="mt-1 text-xs text-gray-400 truncate">
+                        Selecionado: {selectedClient.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Date range in overflow panel */}
+                  {showDateRange && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        Período
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        {RANGES.map(r => {
+                          const isActive = activeRangeDays() === r.days;
+                          return (
+                            <button
+                              key={r.days}
+                              onClick={() => {
+                                setRange(r.days);
+                                setMobileControlsOpen(false);
+                              }}
+                              className={`
+                                flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-150
+                                ${isActive
+                                  ? 'bg-brand-600 text-white shadow-sm'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }
+                              `}
+                            >
+                              {r.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </header>
   );
