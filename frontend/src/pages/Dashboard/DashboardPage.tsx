@@ -1,16 +1,65 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAppStore } from '../../store';
-import { metricsApi, KpiResult } from '../../api/metrics.api';
+import { metricsApi, KpiResult, Metrics } from '../../api/metrics.api';
 import { alertsApi, Alert } from '../../api/alerts.api';
 import { insightsApi } from '../../api/insights.api';
+import { clientsApi } from '../../api/clients.api';
+import { funnelApi } from '../../api/funnel.api';
 import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import Badge from '../../components/ui/Badge';
 import { fmtCurrency, fmtPct, fmtNum, fmtDate, kpiColor, impactColor, impactLabel, severityColor } from '../../utils/formatters';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+
+type FunnelSummary = { leads: number; mql: number; sql: number; sales: number; spend: number; cost_per_sale: number };
+
+function buildObjectiveCards(
+  objectives: string[],
+  m: Metrics,
+  funnel: FunnelSummary | null
+): { label: string; value: string; icon: string }[] {
+  const cards: { label: string; value: string; icon: string }[] = [];
+
+  for (const obj of objectives) {
+    switch (obj) {
+      case 'leads':
+        cards.push({ label: 'Leads', value: fmtNum(m.leads || 0), icon: '🎯' });
+        cards.push({ label: 'CPL', value: m.leads > 0 ? fmtCurrency(m.cpl || 0) : '—', icon: '📊' });
+        break;
+      case 'whatsapp':
+        cards.push({ label: 'Mensagens', value: fmtNum(m.messages || 0), icon: '💬' });
+        cards.push({ label: 'Custo/Mensagem', value: m.messages > 0 ? fmtCurrency(m.cost_per_message || 0) : '—', icon: '📩' });
+        break;
+      case 'vendas':
+        cards.push({ label: 'Vendas', value: fmtNum(funnel?.sales || 0), icon: '🏆' });
+        cards.push({ label: 'Custo/Venda', value: (funnel?.sales || 0) > 0 ? fmtCurrency(funnel!.cost_per_sale) : '—', icon: '💵' });
+        break;
+      case 'seguidores':
+        cards.push({ label: 'Seguidores', value: fmtNum(m.followers || 0), icon: '👥' });
+        cards.push({ label: 'Custo/Seguidor', value: m.followers > 0 ? fmtCurrency(m.cost_per_follower || 0) : '—', icon: '📌' });
+        break;
+      case 'trafego':
+        cards.push({ label: 'Visitas', value: fmtNum(m.clicks || 0), icon: '🔗' });
+        cards.push({ label: 'Custo/Visita', value: m.clicks > 0 ? fmtCurrency(m.cpc || 0) : '—', icon: '🖱️' });
+        break;
+      case 'alcance':
+        cards.push({ label: 'Video Views', value: fmtNum(m.video_views || 0), icon: '▶️' });
+        cards.push({ label: 'Custo/View', value: m.video_views > 0 ? fmtCurrency((m.spend || 0) / m.video_views) : '—', icon: '🎬' });
+        break;
+    }
+  }
+
+  return cards;
+}
 
 export default function DashboardPage() {
   const { selectedClientId, dateRange } = useAppStore();
+
+  const { data: client } = useQuery({
+    queryKey: ['client', selectedClientId],
+    queryFn: () => clientsApi.get(selectedClientId!),
+    enabled: !!selectedClientId,
+  });
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['metrics-summary', selectedClientId, dateRange],
@@ -43,6 +92,12 @@ export default function DashboardPage() {
     enabled: !!selectedClientId,
   });
 
+  const { data: funnel = null } = useQuery({
+    queryKey: ['funnel', selectedClientId, dateRange],
+    queryFn: () => funnelApi.get(selectedClientId!, dateRange.start, dateRange.end),
+    enabled: !!selectedClientId,
+  });
+
   if (!selectedClientId) {
     return (
       <EmptyState
@@ -59,19 +114,31 @@ export default function DashboardPage() {
 
   const m = summary?.metrics;
   const kpiResults: KpiResult[] = summary?.kpi_results || [];
+  const objectives: string[] = client?.objectives || [];
   const critAlerts = alerts.filter((a: Alert) => a.severity === 'critical');
   const warnAlerts = alerts.filter((a: Alert) => a.severity === 'warning');
 
-  const overviewCards = [
+  // Base cards always shown
+  const baseCards = [
     { label: 'Investimento', value: fmtCurrency(m?.spend || 0), icon: '💰' },
     { label: 'Impressões', value: fmtNum(m?.impressions || 0), icon: '👁️' },
-    { label: 'Leads', value: fmtNum(m?.leads || 0), icon: '🎯' },
-    { label: 'CPL', value: fmtCurrency(m?.cpl || 0), icon: '📊' },
     { label: 'CTR', value: fmtPct(m?.ctr || 0), icon: '🖱️' },
     { label: 'Frequência', value: (m?.frequency || 0).toFixed(2), icon: '🔄' },
-    { label: 'Mensagens', value: fmtNum(m?.messages || 0), icon: '💬' },
-    { label: 'CPC', value: fmtCurrency(m?.cpc || 0), icon: '📈' },
   ];
+
+  // Objective-based cards
+  const objectiveCards = m ? buildObjectiveCards(objectives, m, funnel as FunnelSummary | null) : [];
+
+  // If no objectives configured, fall back to legacy cards
+  const overviewCards = objectiveCards.length > 0
+    ? [...baseCards, ...objectiveCards]
+    : [
+        ...baseCards,
+        { label: 'Leads', value: fmtNum(m?.leads || 0), icon: '🎯' },
+        { label: 'CPL', value: fmtCurrency(m?.cpl || 0), icon: '📊' },
+        { label: 'Mensagens', value: fmtNum(m?.messages || 0), icon: '💬' },
+        { label: 'CPC', value: fmtCurrency(m?.cpc || 0), icon: '📈' },
+      ];
 
   return (
     <div className="space-y-6">
