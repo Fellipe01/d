@@ -201,19 +201,33 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
   // Step 4: Get metrics for those creatives
   const { data: metrics, error: metErr } = await supabase
     .from('metrics_daily')
-    .select('entity_id,spend,impressions,clicks,leads,frequency,ctr,cpl')
+    .select('entity_id,spend,impressions,clicks,leads,messages,video_views,frequency,ctr,cpl')
     .eq('entity_type', 'creative')
     .in('entity_id', creativeIds)
     .gte('date', start)
     .lte('date', end);
   if (metErr) throw metErr;
 
+  // Step 4b: Get MQL from crm_metrics for those creatives
+  const { data: crmRows, error: crmErr } = await supabase
+    .from('crm_metrics')
+    .select('creative_id,mql')
+    .in('creative_id', creativeIds)
+    .gte('date', start)
+    .lte('date', end);
+  if (crmErr) throw crmErr;
+
+  const mqlByCreative = new Map<number, number>();
+  for (const row of (crmRows || []) as Array<{ creative_id: number; mql: number }>) {
+    mqlByCreative.set(row.creative_id, (mqlByCreative.get(row.creative_id) ?? 0) + (row.mql || 0));
+  }
+
   // Step 5: Aggregate by creative in JS
   type CreativeInfo = { id: number; name: string; type: string; status: string; thumbnail_url: string | null; ad_set_id: number };
   type CreativeAgg = {
     id: number; name: string; type: string; status: string; thumbnail_url: string | null;
     campaign_id: number | null; campaign_name: string | null;
-    spend: number; impressions: number; clicks: number; leads: number;
+    spend: number; impressions: number; clicks: number; leads: number; messages: number; video_views: number;
     freq_sum: number; ctr_sum: number; cpl_sum: number; count: number;
   };
 
@@ -222,13 +236,15 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
   );
   const aggMap = new Map<number, CreativeAgg>();
 
-  for (const m of (metrics || []) as Array<{ entity_id: number; spend: number; impressions: number; clicks: number; leads: number; frequency: number; ctr: number; cpl: number }>) {
+  for (const m of (metrics || []) as Array<{ entity_id: number; spend: number; impressions: number; clicks: number; leads: number; messages: number; video_views: number; frequency: number; ctr: number; cpl: number }>) {
     const existing = aggMap.get(m.entity_id);
     if (existing) {
       existing.spend += m.spend || 0;
       existing.impressions += m.impressions || 0;
       existing.clicks += m.clicks || 0;
       existing.leads += m.leads || 0;
+      existing.messages += m.messages || 0;
+      existing.video_views += m.video_views || 0;
       existing.freq_sum += m.frequency || 0;
       existing.ctr_sum += m.ctr || 0;
       existing.cpl_sum += m.cpl || 0;
@@ -249,6 +265,8 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
         impressions: m.impressions || 0,
         clicks: m.clicks || 0,
         leads: m.leads || 0,
+        messages: m.messages || 0,
+        video_views: m.video_views || 0,
         freq_sum: m.frequency || 0,
         ctr_sum: m.ctr || 0,
         cpl_sum: m.cpl || 0,
@@ -258,23 +276,32 @@ export async function getTopCreativesByClient(clientId: number, start: string, e
   }
 
   return Array.from(aggMap.values())
-    .map(agg => ({
-      id: agg.id,
-      name: agg.name,
-      type: agg.type,
-      status: agg.status,
-      thumbnail_url: agg.thumbnail_url,
-      campaign_id: agg.campaign_id,
-      campaign_name: agg.campaign_name,
-      spend: agg.spend,
-      impressions: agg.impressions,
-      clicks: agg.clicks,
-      leads: agg.leads,
-      frequency: agg.count > 0 ? agg.freq_sum / agg.count : 0,
-      ctr: agg.count > 0 ? agg.ctr_sum / agg.count : 0,
-      cpl: agg.count > 0 ? agg.cpl_sum / agg.count : 0,
-    }))
-    .sort((a, b) => b.spend - a.spend)
+    .map(agg => {
+      const messages = agg.messages;
+      const video_views = agg.video_views;
+      return {
+        id: agg.id,
+        name: agg.name,
+        type: agg.type,
+        status: agg.status,
+        thumbnail_url: agg.thumbnail_url,
+        campaign_id: agg.campaign_id,
+        campaign_name: agg.campaign_name,
+        spend: agg.spend,
+        impressions: agg.impressions,
+        clicks: agg.clicks,
+        leads: agg.leads,
+        messages,
+        video_views,
+        mql: mqlByCreative.get(agg.id) ?? 0,
+        frequency: agg.count > 0 ? agg.freq_sum / agg.count : 0,
+        ctr: agg.count > 0 ? agg.ctr_sum / agg.count : 0,
+        cpl: agg.leads > 0 ? agg.spend / agg.leads : 0,
+        cost_per_message: messages > 0 ? agg.spend / messages : 0,
+        cost_per_video_view: video_views > 0 ? agg.spend / video_views : 0,
+      };
+    })
+    .sort((a, b) => b.impressions - a.impressions)
     .slice(0, limit);
 }
 

@@ -5,6 +5,8 @@ import { generateWeeklyCampaignReport } from '../modules/reports/weekly-campaign
 import { generateWeeklyActivitiesReport, archivePreviousWeekActivities } from '../modules/reports/weekly-activities-report';
 import { checkAndCreateAlerts } from '../modules/alerts/alerts.repository';
 import { lastWeekRange, currentWeekRange } from '../shared/utils/date';
+import { syncMetaAdsReal } from '../modules/ingestion/adapters/meta-ads.adapter';
+import { syncRdStationReal } from '../modules/ingestion/adapters/rd-station.adapter';
 
 async function getActiveClientIds(): Promise<number[]> {
   const { data, error } = await supabase
@@ -58,6 +60,31 @@ async function runReports(type: 'weekly_mon' | 'weekly_wed' | 'weekly_fri'): Pro
   }
 }
 
+async function runDailySync(): Promise<void> {
+  const clientIds = await getActiveClientIds();
+  console.log(`[Scheduler] Starting daily sync for ${clientIds.length} clients...`);
+
+  for (const clientId of clientIds) {
+    try {
+      await syncMetaAdsReal(clientId);
+      await supabase.from('clients').update({ last_meta_sync_at: new Date().toISOString() }).eq('id', clientId);
+      console.log(`[Scheduler] Meta sync complete for client ${clientId}`);
+    } catch (err) {
+      console.error(`[Scheduler] Meta sync failed for client ${clientId}:`, err);
+    }
+
+    try {
+      await syncRdStationReal(clientId);
+      await supabase.from('clients').update({ last_rd_sync_at: new Date().toISOString() }).eq('id', clientId);
+      console.log(`[Scheduler] RD sync complete for client ${clientId}`);
+    } catch (err) {
+      console.error(`[Scheduler] RD sync failed for client ${clientId}:`, err);
+    }
+  }
+
+  console.log('[Scheduler] Daily sync finished');
+}
+
 async function runAlertChecks(): Promise<void> {
   const clientIds = await getActiveClientIds();
   for (const clientId of clientIds) {
@@ -79,8 +106,11 @@ export function startScheduler(): void {
   // Friday 9am: activities report
   cron.schedule('0 9 * * 5', () => runReports('weekly_fri'), { timezone: 'America/Sao_Paulo' });
 
+  // Daily 6am: sync Meta Ads + RD Station for all active clients
+  cron.schedule('0 6 * * *', runDailySync, { timezone: 'America/Sao_Paulo' });
+
   // Daily 8am: check KPI alerts
   cron.schedule('0 8 * * *', runAlertChecks, { timezone: 'America/Sao_Paulo' });
 
-  console.log('[Scheduler] Cron jobs registered (Mon/Wed/Fri 9am reports, daily 8am alerts)');
+  console.log('[Scheduler] Cron jobs registered (daily 6am sync, Mon/Wed/Fri 9am reports, daily 8am alerts)');
 }

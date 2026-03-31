@@ -17,15 +17,13 @@ function toISO(d: Date) {
   return d.toISOString().split('T')[0];
 }
 
-const today = toISO(new Date());
-
 const RANGE_OPTIONS = [
   { label: '30 dias', days: 30 },
   { label: '60 dias', days: 60 },
   { label: 'Máximo', days: 365 },
 ];
 
-const CAMPAIGN_TYPES = ['WPP', 'VP', 'FORM'] as const;
+const CAMPAIGN_TYPES = ['WPP', 'VP', 'LEAD', 'FORM'] as const;
 type CampaignType = typeof CAMPAIGN_TYPES[number] | 'Outros';
 
 function extractCampaignType(campaignName: string | null | undefined): CampaignType {
@@ -41,11 +39,75 @@ type Creative = {
   id: number; name: string; type: string; status: string;
   campaign_name: string | null;
   spend: number; impressions: number; clicks: number; leads: number;
+  messages: number; video_views: number; mql: number;
   ctr: number; cpl: number; frequency: number;
+  cost_per_message: number; cost_per_video_view: number;
 };
 
-function CreativeCard({ c, rank }: { c: Creative; rank: number }) {
+function CostByType({ c, campaignType }: { c: Creative; campaignType: CampaignType }) {
+  if (campaignType === 'WPP') {
+    return (
+      <>
+        <div>
+          <div className="text-xs text-gray-400">Custo/Mensagem</div>
+          <div className="font-semibold">{c.messages > 0 ? fmtCurrency(c.cost_per_message) : '—'}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-400">Mensagens</div>
+          <div className="font-semibold">{fmtNum(c.messages || 0)}</div>
+        </div>
+      </>
+    );
+  }
+
+  if (campaignType === 'VP') {
+    return (
+      <>
+        <div>
+          <div className="text-xs text-gray-400">Custo/View</div>
+          <div className="font-semibold">{c.video_views > 0 ? fmtCurrency(c.cost_per_video_view) : '—'}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-400">Views</div>
+          <div className="font-semibold">{fmtNum(c.video_views || 0)}</div>
+        </div>
+      </>
+    );
+  }
+
+  if (campaignType === 'LEAD' || campaignType === 'FORM') {
+    return (
+      <>
+        <div>
+          <div className="text-xs text-gray-400">CPL</div>
+          <div className="font-semibold">{c.leads > 0 ? fmtCurrency(c.cpl) : '—'}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-400">Leads</div>
+          <div className="font-semibold">{fmtNum(c.leads || 0)}</div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div>
+        <div className="text-xs text-gray-400">CPL</div>
+        <div className="font-semibold">{c.leads > 0 ? fmtCurrency(c.cpl) : '—'}</div>
+      </div>
+      <div>
+        <div className="text-xs text-gray-400">Leads</div>
+        <div className="font-semibold">{fmtNum(c.leads || 0)}</div>
+      </div>
+    </>
+  );
+}
+
+function CreativeCard({ c, rank, campaignType }: { c: Creative; rank: number; campaignType: CampaignType }) {
   const sat = saturationColor(c.frequency || 0, c.ctr || 0);
+  const isLead = campaignType === 'LEAD' || campaignType === 'FORM';
+
   return (
     <div className={`bg-white rounded-xl border-2 ${sat.color} p-4 shadow-sm`}>
       <div className="flex items-start justify-between mb-2">
@@ -73,10 +135,7 @@ function CreativeCard({ c, rank }: { c: Creative; rank: number }) {
             {fmtPct(c.ctr || 0)}
           </div>
         </div>
-        <div>
-          <div className="text-xs text-gray-400">CPL</div>
-          <div className="font-semibold">{c.leads > 0 ? fmtCurrency(c.cpl || 0) : '—'}</div>
-        </div>
+        <CostByType c={c} campaignType={campaignType} />
         <div>
           <div className="text-xs text-gray-400">Frequência</div>
           <div className={`font-semibold ${c.frequency >= 4 ? 'text-danger-700' : c.frequency >= 2.5 ? 'text-warning-700' : 'text-success-700'}`}>
@@ -84,13 +143,17 @@ function CreativeCard({ c, rank }: { c: Creative; rank: number }) {
           </div>
         </div>
         <div>
-          <div className="text-xs text-gray-400">Leads</div>
-          <div className="font-semibold">{fmtNum(c.leads || 0)}</div>
-        </div>
-        <div>
           <div className="text-xs text-gray-400">Impressões</div>
           <div className="font-semibold">{fmtNum(c.impressions || 0)}</div>
         </div>
+        {isLead && (
+          <div>
+            <div className="text-xs text-gray-400">MQL</div>
+            <div className={`font-semibold ${(c.mql || 0) > 0 ? 'text-success-700' : 'text-gray-400'}`}>
+              {fmtNum(c.mql || 0)}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -100,6 +163,7 @@ export default function CreativesPage() {
   const { selectedClientId } = useAppStore();
   const [rangeDays, setRangeDays] = useState(60);
 
+  const today = toISO(new Date());
   const start = toISO(new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000));
 
   const { data: topCreatives = [], isLoading } = useQuery({
@@ -113,10 +177,10 @@ export default function CreativesPage() {
   if (!topCreatives.length) return <EmptyState icon="🎨" title="Nenhum criativo encontrado"
     description="Carregue dados mock na página de Clientes." />;
 
-  // Filter active only and sort by spend
+  // Active only, sorted by impressions desc
   const activeCreatives = (topCreatives as Creative[])
     .filter(c => !c.status || c.status === 'active')
-    .sort((a, b) => b.spend - a.spend);
+    .sort((a, b) => b.impressions - a.impressions);
 
   // Group by campaign type
   const groups = new Map<CampaignType, Creative[]>();
@@ -128,7 +192,6 @@ export default function CreativesPage() {
     groups.get(t)!.push(c);
   }
 
-  // Only render groups that have creatives
   const visibleGroups = ([...CAMPAIGN_TYPES, 'Outros'] as CampaignType[]).filter(t => groups.get(t)!.length > 0);
 
   return (
@@ -167,7 +230,7 @@ export default function CreativesPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {items.map((c, i) => (
-                <CreativeCard key={c.id} c={c} rank={i + 1} />
+                <CreativeCard key={c.id} c={c} rank={i + 1} campaignType={groupType} />
               ))}
             </div>
           </div>
