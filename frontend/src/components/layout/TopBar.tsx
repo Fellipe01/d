@@ -89,8 +89,8 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
   const location = useLocation();
   const { selectedClientId, setSelectedClientId, dateRange, setDateRange } = useAppStore();
 
-  // Controls the "..." overflow panel on mobile
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
@@ -222,28 +222,85 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
             </div>
           </div>
 
-          {/* ── Alert bell (always visible when there are alerts) ── */}
-          {hasAlerts && (
+          {/* ── Alert bell ── */}
+          <div className="relative">
             <button
-              className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-gray-100 transition-colors"
-              title={`${alertCount} alerta${alertCount > 1 ? 's' : ''} ativo${alertCount > 1 ? 's' : ''}`}
-              aria-label={`${alertCount} alertas`}
+              onClick={() => setBellOpen(v => !v)}
+              className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${bellOpen ? 'bg-gray-100' : 'hover:bg-gray-100'}`}
+              aria-label="Notificações"
             >
-              <span className={criticalCount > 0 ? 'text-red-500' : 'text-yellow-500'}>
+              <span className={hasAlerts ? (criticalCount > 0 ? 'text-red-500' : 'text-yellow-500') : 'text-gray-400'}>
                 <BellIcon size={20} />
               </span>
-              <span
-                className={`
-                  absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1
-                  text-[10px] font-bold flex items-center justify-center
-                  rounded-full text-white leading-none
-                  ${criticalCount > 0 ? 'bg-red-500' : 'bg-yellow-500'}
-                `}
-              >
-                {alertCount > 9 ? '9+' : alertCount}
-              </span>
+              {hasAlerts && (
+                <span className={`absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 text-[10px] font-bold flex items-center justify-center rounded-full text-white leading-none ${criticalCount > 0 ? 'bg-red-500' : 'bg-yellow-500'}`}>
+                  {alertCount > 9 ? '9+' : alertCount}
+                </span>
+              )}
             </button>
-          )}
+
+            {bellOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setBellOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 z-30 w-80 bg-white rounded-xl shadow-xl border border-gray-200/80 overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+                    <span className="text-sm font-semibold text-gray-800">Notificações</span>
+                    {hasAlerts && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${criticalCount > 0 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        {alertCount} ativo{alertCount > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Alert list */}
+                  <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-50">
+                    {!selectedClientId && (
+                      <div className="px-4 py-6 text-center text-sm text-gray-400">
+                        Selecione um cliente para ver alertas
+                      </div>
+                    )}
+                    {selectedClientId && !hasAlerts && (
+                      <div className="px-4 py-8 text-center">
+                        <div className="text-2xl mb-2">✅</div>
+                        <p className="text-sm font-medium text-gray-600">Nenhum alerta ativo</p>
+                        <p className="text-xs text-gray-400 mt-1">Tudo dentro dos KPIs configurados</p>
+                      </div>
+                    )}
+                    {(alerts as { id: number; severity: string; message: string; alert_type: string; kpi_name?: string; actual_value?: number; threshold_value?: number; created_at: string }[]).map(alert => (
+                      <div key={alert.id} className={`flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${alert.severity === 'critical' ? 'border-l-2 border-l-red-500' : 'border-l-2 border-l-yellow-400'}`}>
+                        <span className="text-base mt-0.5 shrink-0">
+                          {alert.severity === 'critical' ? '🚨' : '⚠️'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-800 leading-snug">{alert.message}</p>
+                          {alert.kpi_name && (
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              KPI: <span className="font-medium text-gray-500">{alert.kpi_name}</span>
+                              {alert.actual_value != null && ` · Real: ${alert.actual_value.toFixed(2)}`}
+                              {alert.threshold_value != null && ` · Meta: ${alert.threshold_value.toFixed(2)}`}
+                            </p>
+                          )}
+                          <p className="text-[11px] text-gray-300 mt-0.5">
+                            {new Date(alert.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Footer */}
+                  {hasAlerts && (
+                    <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50">
+                      <a href="/alerts" onClick={() => setBellOpen(false)} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+                        Ver todos os alertas →
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* ── Mobile "..." overflow button ── */}
           <div className="relative md:hidden">
