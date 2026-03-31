@@ -115,10 +115,17 @@ function CreativeCard({ c, rank, campaignType }: { c: Creative; rank: number; ca
           <div className="flex items-center gap-1 flex-wrap">
             <span className="text-xs text-gray-400">#{rank}</span>
             <Badge label={c.type} className="bg-gray-100 text-gray-600 capitalize" />
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-green-50 text-green-700">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              Ativo
-            </span>
+            {c.status === 'paused' ? (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-yellow-50 text-yellow-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                Pausado
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-green-50 text-green-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Ativo
+              </span>
+            )}
           </div>
           <h3 className="font-medium text-gray-800 text-sm mt-1 truncate">{c.name}</h3>
         </div>
@@ -162,13 +169,15 @@ function CreativeCard({ c, rank, campaignType }: { c: Creative; rank: number; ca
 export default function CreativesPage() {
   const { selectedClientId } = useAppStore();
   const [rangeDays, setRangeDays] = useState(60);
+  const [showActive, setShowActive] = useState(true);
+  const [showPaused, setShowPaused] = useState(false);
 
   const today = toISO(new Date());
   const start = toISO(new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000));
 
   const { data: topCreatives = [], isLoading } = useQuery({
     queryKey: ['top-creatives', selectedClientId, start, today],
-    queryFn: () => metricsApi.getTopCreatives(selectedClientId!, start, today, 50),
+    queryFn: () => metricsApi.getTopCreatives(selectedClientId!, start, today, 100),
     enabled: !!selectedClientId,
   });
 
@@ -177,9 +186,17 @@ export default function CreativesPage() {
   if (!topCreatives.length) return <EmptyState icon="🎨" title="Nenhum criativo encontrado"
     description="Carregue dados mock na página de Clientes." />;
 
-  // Active only, sorted by impressions desc
-  const activeCreatives = (topCreatives as Creative[])
-    .filter(c => !c.status || c.status === 'active')
+  const allCreatives = topCreatives as Creative[];
+  const activeCount = allCreatives.filter(c => !c.status || c.status === 'active').length;
+  const pausedCount = allCreatives.filter(c => c.status === 'paused').length;
+
+  // Filter based on toggles, sorted by impressions desc
+  const visibleCreatives = allCreatives
+    .filter(c => {
+      const isActive = !c.status || c.status === 'active';
+      const isPaused = c.status === 'paused';
+      return (showActive && isActive) || (showPaused && isPaused);
+    })
     .sort((a, b) => b.impressions - a.impressions);
 
   // Group by campaign type
@@ -187,7 +204,7 @@ export default function CreativesPage() {
   for (const t of [...CAMPAIGN_TYPES, 'Outros'] as CampaignType[]) {
     groups.set(t, []);
   }
-  for (const c of activeCreatives) {
+  for (const c of visibleCreatives) {
     const t = extractCampaignType(c.campaign_name);
     groups.get(t)!.push(c);
   }
@@ -196,9 +213,32 @@ export default function CreativesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="font-semibold text-gray-900">Criativos</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Status toggles */}
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setShowActive(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                showActive ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${showActive ? 'bg-green-500' : 'bg-gray-400'}`} />
+              Ativos ({activeCount})
+            </button>
+            <button
+              onClick={() => setShowPaused(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                showPaused ? 'bg-white text-yellow-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${showPaused ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+              Pausados ({pausedCount})
+            </button>
+          </div>
+
+          {/* Range filter */}
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
             {RANGE_OPTIONS.map(opt => (
               <button
@@ -214,7 +254,7 @@ export default function CreativesPage() {
               </button>
             ))}
           </div>
-          <p className="text-sm text-gray-500">{activeCreatives.length} ativo(s)</p>
+          <p className="text-sm text-gray-500">{visibleCreatives.length} criativo(s)</p>
         </div>
       </div>
 

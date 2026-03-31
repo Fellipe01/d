@@ -58,21 +58,23 @@ export default function TopBar() {
       <h1 className="text-lg font-semibold text-gray-800">{title}</h1>
 
       <div className="flex items-center gap-3">
-        {/* Date range */}
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          {RANGES.map(r => {
-            const active = format(subDays(new Date(), r.days), 'yyyy-MM-dd') === dateRange.start;
-            return (
-              <button
-                key={r.days}
-                onClick={() => setRange(r.days)}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${active ? 'bg-white shadow font-medium text-brand-600' : 'text-gray-500 hover:text-gray-800'}`}
-              >
-                {r.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Date range — hidden on Creatives page (has its own range filter) */}
+        {location.pathname !== '/creatives' && (
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            {RANGES.map(r => {
+              const active = format(subDays(new Date(), r.days), 'yyyy-MM-dd') === dateRange.start;
+              return (
+                <button
+                  key={r.days}
+                  onClick={() => setRange(r.days)}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${active ? 'bg-white shadow font-medium text-brand-600' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Client selector */}
         <select
