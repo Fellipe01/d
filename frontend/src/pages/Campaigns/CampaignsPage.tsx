@@ -48,6 +48,30 @@ interface CreativeRow {
 function safe(a: number, b: number) { return b > 0 ? a / b : 0; }
 function pct(a: number, b: number) { return b > 0 ? (a / b) * 100 : 0; }
 
+type CampaignType = 'WPP' | 'VP' | 'LEAD' | 'FORM' | 'OTHER';
+
+function getCampaignType(name: string): CampaignType {
+  const upper = name.toUpperCase();
+  if (upper.includes('[WPP]')) return 'WPP';
+  if (upper.includes('[VP]'))  return 'VP';
+  if (upper.includes('[LEAD]')) return 'LEAD';
+  if (upper.includes('[FORM]')) return 'FORM';
+  return 'OTHER';
+}
+
+const CAMPAIGN_TYPE_META: Record<CampaignType, {
+  label: string;
+  badge: string;
+  costLabel: string;
+  costKey: keyof Metrics;
+}> = {
+  WPP:   { label: 'WhatsApp',    badge: 'bg-green-100 text-green-700',  costLabel: 'Custo/MSG',   costKey: 'cost_per_message' },
+  VP:    { label: 'Vídeo Play',  badge: 'bg-purple-100 text-purple-700', costLabel: 'Custo/View', costKey: 'cpl' },
+  LEAD:  { label: 'Lead Ads',    badge: 'bg-brand-100 text-brand-700',  costLabel: 'CPL',         costKey: 'cpl' },
+  FORM:  { label: 'Formulário',  badge: 'bg-orange-100 text-orange-700', costLabel: 'CPL',        costKey: 'cpl' },
+  OTHER: { label: 'Outros',      badge: 'bg-gray-100 text-gray-600',    costLabel: 'CPL',         costKey: 'cpl' },
+};
+
 // ── Status indicator ──────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: string }) {
@@ -77,6 +101,67 @@ function MetricPill({ label, value, highlight }: { label: string; value: string;
   );
 }
 
+// ── Group Header ──────────────────────────────────────────────────────────────
+
+function GroupHeader({ type, count }: { type: CampaignType; count: number }) {
+  const meta = CAMPAIGN_TYPE_META[type];
+  return (
+    <div className="flex items-center gap-3 mt-5 mb-2 first:mt-0">
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide ${meta.badge}`}>
+        [{type === 'OTHER' ? '···' : type}]
+      </span>
+      <span className="text-xs font-semibold text-gray-500">{meta.label}</span>
+      <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{count}</span>
+      <div className="flex-1 h-px bg-gray-150" style={{ background: 'linear-gradient(to right, #e5e7eb, transparent)' }} />
+    </div>
+  );
+}
+
+// ── Skeleton loading ──────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-3 animate-pulse">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-3/4" />
+          <div className="h-3 bg-gray-100 rounded w-1/2" />
+        </div>
+        <div className="h-6 bg-gray-200 rounded-full w-16" />
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="h-7 bg-gray-200 rounded w-24" />
+        <div className="flex gap-2">
+          <div className="h-12 w-16 bg-gray-100 rounded-xl" />
+          <div className="h-12 w-16 bg-brand-50 rounded-xl" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <div className="h-3 bg-gray-100 rounded w-20" />
+        <div className="h-3 bg-gray-100 rounded w-16" />
+        <div className="h-3 bg-gray-100 rounded w-20" />
+      </div>
+    </div>
+  );
+}
+
+function SkeletonTableRow() {
+  return (
+    <tr className="hidden sm:table-row animate-pulse border-b border-gray-100">
+      <td className="px-4 py-4">
+        <div className="h-4 bg-gray-200 rounded w-56 mb-1.5" />
+        <div className="h-3 bg-gray-100 rounded w-32" />
+      </td>
+      <td className="px-4 py-4"><div className="h-5 bg-gray-200 rounded-full w-16" /></td>
+      <td className="px-4 py-4 text-right"><div className="h-4 bg-gray-200 rounded w-20 ml-auto" /></td>
+      <td className="px-4 py-4 text-right"><div className="h-4 bg-gray-100 rounded w-14 ml-auto" /></td>
+      <td className="px-4 py-4 text-right"><div className="h-4 bg-gray-100 rounded w-14 ml-auto" /></td>
+      <td className="px-4 py-4 text-right"><div className="h-4 bg-brand-50 rounded w-20 ml-auto" /></td>
+      <td className="px-4 py-4"><div className="h-6 bg-gray-100 rounded w-48" /></td>
+    </tr>
+  );
+}
+
 // ── Funnel strip (inline) ─────────────────────────────────────────────────────
 
 function FunnelStrip({ spend, leads, mql, sql, sales }: {
@@ -103,9 +188,9 @@ function FunnelStrip({ spend, leads, mql, sql, sales }: {
         <div key={s.label} className="flex items-center gap-1">
           {i > 0 && (
             <div className="flex flex-col items-center mx-0.5">
-              <span className="text-gray-300 text-sm">→</span>
+              <span className="text-gray-300 text-sm leading-none">→</span>
               {(steps[i] as typeof steps[0] & { conv?: string | null }).conv && (
-                <span className="text-xs text-gray-400 -mt-1 whitespace-nowrap">
+                <span className="mt-0.5 text-[10px] font-semibold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full whitespace-nowrap leading-none">
                   {(steps[i] as typeof steps[0] & { conv?: string | null }).conv}
                 </span>
               )}
@@ -143,7 +228,6 @@ function FunnelGeral({ spend, leads, mql, sql, sales, revenue }: {
     { label: 'Vendas', count: sales, cost: cac,    conv: pVenda, pctLabel: 'SQL → Venda',      color: 'text-success-700',bg: 'bg-success-100',bar: 'bg-success-500' },
   ];
 
-  // Widths for a stepped funnel bar (proportional to lead count)
   const maxCount = Math.max(leads, 1);
 
   return (
@@ -170,49 +254,70 @@ function FunnelGeral({ spend, leads, mql, sql, sales, revenue }: {
 
         {/* Mobile: stacked list */}
         <div className="block sm:hidden space-y-2">
-          {steps.map(s => (
-            <div key={s.label} className={`flex items-center justify-between ${s.bg} rounded-xl px-3 py-2.5`}>
-              <div>
-                <span className={`text-xl font-extrabold ${s.color}`}>{fmtNum(s.count)}</span>
-                <span className={`ml-2 text-sm font-semibold ${s.color}`}>{s.label}</span>
-                {s.conv !== null && (
-                  <span className="ml-2 text-xs text-gray-400">{fmtPct(s.conv)} conv.</span>
-                )}
-              </div>
-              {s.count > 0 && (
-                <div className="text-right">
-                  <div className="text-xs text-gray-500">{s.label === 'Vendas' ? 'CAC' : `C/${s.label}`}</div>
-                  <div className={`text-sm font-bold ${s.color}`}>{fmtCurrency(s.cost)}</div>
+          {steps.map((s, i) => (
+            <div key={s.label}>
+              {i > 0 && s.conv !== null && (
+                <div className="flex items-center justify-center my-1">
+                  <span className="text-gray-300 text-sm mr-1">↓</span>
+                  <span className="text-[11px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                    {fmtPct(s.conv)} conv.
+                  </span>
                 </div>
               )}
+              <div className={`flex items-center justify-between ${s.bg} rounded-xl px-3 py-2.5`}>
+                <div>
+                  <span className={`text-xl font-extrabold ${s.color}`}>{fmtNum(s.count)}</span>
+                  <span className={`ml-2 text-sm font-semibold ${s.color}`}>{s.label}</span>
+                </div>
+                {s.count > 0 && (
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500">{s.label === 'Vendas' ? 'CAC' : `C/${s.label}`}</div>
+                    <div className={`text-sm font-bold ${s.color}`}>{fmtCurrency(s.cost)}</div>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Desktop: horizontal funnel */}
-        <div className="hidden sm:grid grid-cols-4 gap-3">
-          {steps.map(s => (
-            <div key={s.label} className={`rounded-xl p-3 ${s.bg}`}>
-              {/* Funnel bar */}
-              <div className="h-1.5 rounded-full bg-gray-200 mb-2 overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${s.bar} transition-all duration-500`}
-                  style={{ width: `${Math.min(100, (s.count / maxCount) * 100)}%` }}
-                />
-              </div>
-              <div className={`text-2xl font-extrabold leading-tight ${s.color}`}>{fmtNum(s.count)}</div>
-              <div className={`text-xs font-bold ${s.color} mt-0.5`}>{s.label}</div>
-              <div className="mt-2 space-y-0.5">
-                {s.conv !== null && (
-                  <div className="text-xs text-gray-500">
-                    {s.pctLabel}: <span className={`font-semibold ${s.color}`}>{fmtPct(s.conv)}</span>
+        {/* Desktop: horizontal funnel with visible conversion badges */}
+        <div className="hidden sm:flex items-end gap-0">
+          {steps.map((s, i) => (
+            <div key={s.label} className="flex items-center">
+              {i > 0 && (
+                <div className="flex flex-col items-center mx-2 mb-3 gap-1">
+                  <span className="text-gray-300 text-lg leading-none">→</span>
+                  {s.conv !== null && (
+                    <span className="text-[11px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      {fmtPct(s.conv)}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className={`rounded-xl p-3 flex-1 min-w-[110px]`} style={{ background: s.bg.replace('bg-', '') }}>
+                <div className={`rounded-xl p-3 ${s.bg}`}>
+                  {/* Funnel bar */}
+                  <div className="h-1.5 rounded-full bg-gray-200 mb-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${s.bar} transition-all duration-500`}
+                      style={{ width: `${Math.min(100, (s.count / maxCount) * 100)}%` }}
+                    />
                   </div>
-                )}
-                {s.count > 0 && (
-                  <div className="text-xs text-gray-500">
-                    {s.label === 'Vendas' ? 'CAC' : `C/${s.label}`}: <span className="font-semibold text-gray-700">{fmtCurrency(s.cost)}</span>
+                  <div className={`text-2xl font-extrabold leading-tight ${s.color}`}>{fmtNum(s.count)}</div>
+                  <div className={`text-xs font-bold ${s.color} mt-0.5`}>{s.label}</div>
+                  <div className="mt-2 space-y-0.5">
+                    {s.pctLabel && s.conv !== null && (
+                      <div className="text-xs text-gray-500">
+                        {s.pctLabel}: <span className={`font-semibold ${s.color}`}>{fmtPct(s.conv)}</span>
+                      </div>
+                    )}
+                    {s.count > 0 && (
+                      <div className="text-xs text-gray-500">
+                        {s.label === 'Vendas' ? 'CAC' : `C/${s.label}`}: <span className="font-semibold text-gray-700">{fmtCurrency(s.cost)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             </div>
           ))}
@@ -222,10 +327,10 @@ function FunnelGeral({ spend, leads, mql, sql, sales, revenue }: {
   );
 }
 
-// ── Metrics Summary ───────────────────────────────────────────────────────────
+// ── Metrics Summary (tabbed: Mídia / Resultados) ──────────────────────────────
 
 function MetricsSummary({ clientId, dateRange }: { clientId: number; dateRange: { start: string; end: string } }) {
-  const [showSecondary, setShowSecondary] = useState(false);
+  const [tab, setTab] = useState<'midia' | 'resultados'>('midia');
 
   const { data: summary } = useQuery({
     queryKey: ['metrics-summary', clientId, dateRange],
@@ -235,7 +340,7 @@ function MetricsSummary({ clientId, dateRange }: { clientId: number; dateRange: 
   const m = summary?.metrics;
   if (!m) return null;
 
-  const primary = [
+  const midia = [
     { label: 'Investimento', value: fmtCurrency(m.spend), highlight: true },
     { label: 'Impressões',   value: fmtNum(m.impressions) },
     { label: 'Alcance',      value: fmtNum(m.reach) },
@@ -244,34 +349,48 @@ function MetricsSummary({ clientId, dateRange }: { clientId: number; dateRange: 
     { label: 'CTR',          value: fmtPct(m.ctr), highlight: true },
     { label: 'CPM',          value: fmtCurrency(m.cpm) },
     { label: 'CPC',          value: fmtCurrency(m.cpc) },
-    { label: 'Leads',        value: fmtNum(m.leads), highlight: true },
-    { label: 'CPL',          value: fmtCurrency(m.cpl), highlight: true },
   ];
 
-  const secondary = [
-    { label: 'Mensagens',   value: fmtNum(m.messages) },
-    { label: 'C/Mensagem',  value: fmtCurrency(m.cost_per_message) },
-    { label: 'Seguidores',  value: fmtNum(m.followers) },
-    { label: 'C/Seguidor',  value: fmtCurrency(m.cost_per_follower) },
-    { label: 'Video Views', value: fmtNum(m.video_views) },
+  const resultados = [
+    { label: 'Leads',        value: fmtNum(m.leads),              highlight: true },
+    { label: 'CPL',          value: fmtCurrency(m.cpl),           highlight: true },
+    { label: 'Mensagens',    value: fmtNum(m.messages) },
+    { label: 'C/Mensagem',   value: fmtCurrency(m.cost_per_message) },
+    { label: 'Video Views',  value: fmtNum(m.video_views) },
+    { label: 'Seguidores',   value: fmtNum(m.followers) },
+    { label: 'C/Seguidor',   value: fmtCurrency(m.cost_per_follower) },
   ];
+
+  const pills = tab === 'midia' ? midia : resultados;
 
   return (
     <Card className="!p-0">
       <div className="px-5 pt-4 pb-4">
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Métricas Gerais — Período</span>
-          <button
-            onClick={() => setShowSecondary(s => !s)}
-            className="text-xs text-brand-600 hover:text-brand-700 font-medium"
-          >
-            {showSecondary ? '▲ Ocultar' : '▼ Secundárias'}
-          </button>
+          {/* Tab toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
+            <button
+              onClick={() => setTab('midia')}
+              className={`px-3 py-1 text-xs rounded-md transition-all font-semibold ${
+                tab === 'midia' ? 'bg-white shadow text-brand-600' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Mídia
+            </button>
+            <button
+              onClick={() => setTab('resultados')}
+              className={`px-3 py-1 text-xs rounded-md transition-all font-semibold ${
+                tab === 'resultados' ? 'bg-white shadow text-brand-600' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Resultados
+            </button>
+          </div>
         </div>
 
-        {/* Filter chips / metric grid — responsive wrap */}
         <div className="flex flex-wrap gap-2">
-          {primary.map(({ label, value, highlight }) => (
+          {pills.map(({ label, value, highlight }) => (
             <div
               key={label}
               className={`flex flex-col items-start px-3 py-2 rounded-xl border ${
@@ -287,17 +406,6 @@ function MetricsSummary({ clientId, dateRange }: { clientId: number; dateRange: 
             </div>
           ))}
         </div>
-
-        {showSecondary && (
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
-            {secondary.map(({ label, value }) => (
-              <div key={label} className="flex flex-col items-start px-3 py-2 rounded-xl border border-gray-100 bg-gray-50">
-                <span className="text-sm font-bold text-gray-800 leading-tight">{value}</span>
-                <span className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">{label}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </Card>
   );
@@ -305,13 +413,15 @@ function MetricsSummary({ clientId, dateRange }: { clientId: number; dateRange: 
 
 // ── Campaign row (desktop table row / mobile card) ────────────────────────────
 
-function CampaignRow({ campaign, metrics, funnelMap }: {
+function CampaignRow({ campaign, metrics, funnelMap, campaignType }: {
   campaign: Campaign;
   metrics: Metrics;
   dateRange: { start: string; end: string };
   funnelMap: Map<number, FunnelRow>;
+  campaignType: CampaignType;
 }) {
   const funnel = funnelMap.get(campaign.id);
+  const typeMeta = CAMPAIGN_TYPE_META[campaignType];
 
   const platformColor = (p: string) => {
     if (p === 'meta') return 'bg-blue-100 text-blue-700';
@@ -319,6 +429,11 @@ function CampaignRow({ campaign, metrics, funnelMap }: {
     if (p === 'tiktok') return 'bg-gray-800 text-white';
     return 'bg-gray-100 text-gray-600';
   };
+
+  // Context-aware cost metric value
+  const costValue = campaignType === 'WPP'
+    ? fmtCurrency(metrics.cost_per_message)
+    : fmtCurrency(metrics.cpl);
 
   return (
     <>
@@ -340,7 +455,7 @@ function CampaignRow({ campaign, metrics, funnelMap }: {
           <span className="text-xl font-extrabold text-gray-900">{fmtCurrency(metrics.spend)}</span>
           <div className="flex gap-2">
             <MetricPill label="CTR" value={fmtPct(metrics.ctr)} />
-            <MetricPill label="CPL" value={fmtCurrency(metrics.cpl)} highlight />
+            <MetricPill label={typeMeta.costLabel} value={costValue} highlight />
           </div>
         </div>
         <div className="text-xs text-gray-400 flex gap-3 flex-wrap">
@@ -359,31 +474,31 @@ function CampaignRow({ campaign, metrics, funnelMap }: {
 
       {/* Desktop table row */}
       <tr className="hidden sm:table-row group hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
-        <td className="px-4 py-3 max-w-xs">
+        <td className="px-4 py-3.5 max-w-xs">
           <div className="font-medium text-gray-800 text-sm leading-snug truncate">{campaign.name}</div>
           {campaign.objective && (
             <div className="text-xs text-gray-400 mt-0.5 truncate">{campaign.objective}</div>
           )}
         </td>
-        <td className="px-3 py-3 whitespace-nowrap">
+        <td className="px-4 py-3.5 whitespace-nowrap">
           <div className="flex items-center gap-1.5">
             <StatusDot status={campaign.status} />
             <Badge label={campaign.platform} className={`hidden lg:inline-flex ${platformColor(campaign.platform)}`} />
           </div>
         </td>
-        <td className="px-3 py-3 text-right whitespace-nowrap">
+        <td className="px-4 py-3.5 text-right whitespace-nowrap">
           <span className="font-bold text-gray-900 text-sm">{fmtCurrency(metrics.spend)}</span>
         </td>
-        <td className="px-3 py-3 text-right whitespace-nowrap">
+        <td className="px-4 py-3.5 text-right whitespace-nowrap">
           <span className="text-sm text-gray-700">{fmtPct(metrics.ctr)}</span>
         </td>
-        <td className="px-3 py-3 text-right whitespace-nowrap">
+        <td className="px-4 py-3.5 text-right whitespace-nowrap">
           <span className="text-sm text-gray-700">{fmtCurrency(metrics.cpm)}</span>
         </td>
-        <td className="px-3 py-3 text-right whitespace-nowrap">
-          <span className="text-sm font-semibold text-brand-700">{fmtCurrency(metrics.cpl)}</span>
+        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+          <span className="text-sm font-semibold text-brand-700">{costValue}</span>
         </td>
-        <td className="px-3 py-3">
+        <td className="px-4 py-3.5">
           <FunnelStrip
             spend={metrics.spend}
             leads={metrics.leads}
@@ -451,26 +566,26 @@ function CreativeRow({ creative, funnelMap, dateRange }: {
 
       {/* Desktop table row */}
       <tr className="hidden sm:table-row group hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
-        <td className="px-4 py-3 max-w-xs">
+        <td className="px-4 py-3.5 max-w-xs">
           <div className="font-medium text-gray-800 text-sm truncate">{creative.name}</div>
           <div className="text-xs text-gray-400 mt-0.5">
             Freq {(creative.frequency ?? 0).toFixed(1)} · {fmtNum(creative.impressions)} imp.
           </div>
         </td>
-        <td className="px-3 py-3 whitespace-nowrap">
+        <td className="px-4 py-3.5 whitespace-nowrap">
           <Badge label={creative.type} className={typeColor(creative.type)} />
         </td>
-        <td className="px-3 py-3 text-right whitespace-nowrap">
+        <td className="px-4 py-3.5 text-right whitespace-nowrap">
           <span className="font-bold text-gray-900 text-sm">{fmtCurrency(spend)}</span>
         </td>
-        <td className="px-3 py-3 text-right whitespace-nowrap">
+        <td className="px-4 py-3.5 text-right whitespace-nowrap">
           <span className="text-sm text-gray-700">{fmtPct(creative.ctr)}</span>
         </td>
-        <td className="px-3 py-3 text-right whitespace-nowrap" />
-        <td className="px-3 py-3 text-right whitespace-nowrap">
+        <td className="px-4 py-3.5 text-right whitespace-nowrap" />
+        <td className="px-4 py-3.5 text-right whitespace-nowrap">
           <span className="text-sm font-semibold text-brand-700">{fmtCurrency(creative.cpl)}</span>
         </td>
-        <td className="px-3 py-3">
+        <td className="px-4 py-3.5">
           <FunnelStrip
             spend={spend}
             leads={leads}
@@ -490,12 +605,12 @@ function DataTable({ headers, children }: { headers: string[]; children: React.R
   return (
     <div className="hidden sm:block bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
       <table className="w-full text-left">
-        <thead>
+        <thead className="sticky top-0 z-10">
           <tr className="bg-gray-50 border-b border-gray-200">
             {headers.map((h, i) => (
               <th
                 key={h}
-                className={`px-3 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-widest first:px-4 ${i > 1 ? 'text-right' : ''}`}
+                className={`px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-widest first:px-4 ${i > 1 ? 'text-right' : ''}`}
               >
                 {h}
               </th>
@@ -505,6 +620,75 @@ function DataTable({ headers, children }: { headers: string[]; children: React.R
         <tbody>{children}</tbody>
       </table>
     </div>
+  );
+}
+
+// ── Grouped campaigns rendering ───────────────────────────────────────────────
+
+const TYPE_ORDER: CampaignType[] = ['WPP', 'VP', 'LEAD', 'FORM', 'OTHER'];
+
+function GroupedCampaigns({
+  campaignsWithMetrics,
+  funnelCampMap,
+  dateRange,
+}: {
+  campaignsWithMetrics: Array<{ campaign: Campaign; metrics: Metrics }>;
+  funnelCampMap: Map<number, FunnelRow>;
+  dateRange: { start: string; end: string };
+}) {
+  // Group campaigns by type
+  const grouped = new Map<CampaignType, Array<{ campaign: Campaign; metrics: Metrics }>>();
+  for (const item of campaignsWithMetrics) {
+    const t = getCampaignType(item.campaign.name);
+    if (!grouped.has(t)) grouped.set(t, []);
+    grouped.get(t)!.push(item);
+  }
+
+  // Build dynamic headers per type group for desktop tables
+  // We render one DataTable per group with a context-aware cost column header
+
+  return (
+    <>
+      {TYPE_ORDER.filter(t => grouped.has(t)).map(type => {
+        const items = grouped.get(type)!;
+        const typeMeta = CAMPAIGN_TYPE_META[type];
+        const headers = ['Campanha', 'Status', 'Gasto', 'CTR', 'CPM', typeMeta.costLabel, 'Funil'];
+
+        return (
+          <div key={type}>
+            <GroupHeader type={type} count={items.length} />
+
+            {/* Mobile cards */}
+            <div className="sm:hidden space-y-3">
+              {items.map(({ campaign, metrics }) => (
+                <CampaignRow
+                  key={campaign.id}
+                  campaign={campaign}
+                  metrics={metrics}
+                  dateRange={dateRange}
+                  funnelMap={funnelCampMap}
+                  campaignType={type}
+                />
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <DataTable headers={headers}>
+              {items.map(({ campaign, metrics }) => (
+                <CampaignRow
+                  key={campaign.id}
+                  campaign={campaign}
+                  metrics={metrics}
+                  dateRange={dateRange}
+                  funnelMap={funnelCampMap}
+                  campaignType={type}
+                />
+              ))}
+            </DataTable>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -613,7 +797,7 @@ export default function CampaignsPage() {
   const campaignsWithMetrics = (campaigns as Campaign[])
     .map((c, i) => ({ campaign: c, metrics: campaignMetricsQueries[i]?.data }))
     .filter(({ metrics }) => (metrics?.spend ?? 0) > 0)
-    .sort((a, b) => (b.metrics?.spend ?? 0) - (a.metrics?.spend ?? 0));
+    .sort((a, b) => (b.metrics?.spend ?? 0) - (a.metrics?.spend ?? 0)) as Array<{ campaign: Campaign; metrics: Metrics }>;
 
   // Creatives: filter zero spend, sort by spend desc
   const sortedCreatives = (topCreatives as CreativeRow[])
@@ -626,7 +810,6 @@ export default function CampaignsPage() {
     ? (loadingCamp || (campaigns.length > 0 && !allMetricsLoaded))
     : loadingCreatives;
 
-  const campaignHeaders = ['Campanha', 'Status', 'Gasto', 'CTR', 'CPM', 'CPL', 'Funil'];
   const creativeHeaders = ['Criativo', 'Tipo', 'Gasto', 'CTR', 'CPM', 'CPL', 'Funil'];
 
   return (
@@ -677,16 +860,38 @@ export default function CampaignsPage() {
         />
       )}
 
-      {/* Loading skeleton */}
+      {/* Skeleton loading */}
       {isLoading && (
-        <div className="space-y-2">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-200 h-20 animate-pulse" />
-          ))}
-        </div>
+        <>
+          {/* Mobile skeletons */}
+          <div className="sm:hidden space-y-3">
+            {[1, 2, 3, 4].map(i => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+          {/* Desktop skeleton table */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 animate-pulse">
+                  {['Campanha', 'Status', 'Gasto', 'CTR', 'CPM', 'CPL', 'Funil'].map((h, i) => (
+                    <th key={h} className={`px-4 py-3 ${i > 1 ? 'text-right' : ''}`}>
+                      <div className="h-3 bg-gray-200 rounded w-12 inline-block" />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map(i => (
+                  <SkeletonTableRow key={i} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
-      {/* Campaigns list */}
+      {/* Campaigns list — grouped by type */}
       {!isLoading && view === 'campaigns' && (
         <>
           {!campaignsWithMetrics.length ? (
@@ -696,32 +901,11 @@ export default function CampaignsPage() {
               description="Sincronize os dados do Meta Ads na página de Clientes."
             />
           ) : (
-            <>
-              {/* Mobile cards */}
-              <div className="sm:hidden space-y-3">
-                {campaignsWithMetrics.map(({ campaign, metrics }) => (
-                  <CampaignRow
-                    key={campaign.id}
-                    campaign={campaign}
-                    metrics={metrics!}
-                    dateRange={dateRange}
-                    funnelMap={funnelCampMap}
-                  />
-                ))}
-              </div>
-              {/* Desktop table */}
-              <DataTable headers={campaignHeaders}>
-                {campaignsWithMetrics.map(({ campaign, metrics }) => (
-                  <CampaignRow
-                    key={campaign.id}
-                    campaign={campaign}
-                    metrics={metrics!}
-                    dateRange={dateRange}
-                    funnelMap={funnelCampMap}
-                  />
-                ))}
-              </DataTable>
-            </>
+            <GroupedCampaigns
+              campaignsWithMetrics={campaignsWithMetrics}
+              funnelCampMap={funnelCampMap}
+              dateRange={dateRange}
+            />
           )}
         </>
       )}
