@@ -323,7 +323,12 @@ async function syncInsights(
     const messages = getAction(ins.actions, 'onsite_conversion.messaging_conversation_started_7d') ||
       getAction(ins.actions, 'onsite_conversion.total_messaging_connection');
     const followers = getAction(ins.actions, 'like');
-    const videoViews = Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);
+    // Use standard 3-second video views (shown in Meta Ads Manager) as primary.
+    // video_p25_watched_actions (25% watched) under-counts for short/engagement videos.
+    const videoViews =
+      getAction(ins.actions, 'video_view') ||                               // 3-sec standard
+      getAction(ins.actions, 'onsite_conversion.video_view') ||            // onsite variant
+      Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);             // 25% fallback
 
     return {
       entity_type: entityType,

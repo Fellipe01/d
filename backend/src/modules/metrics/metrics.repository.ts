@@ -39,6 +39,7 @@ export interface AggregatedMetrics {
   followers: number;
   cost_per_follower: number;
   video_views: number;
+  cost_per_video_view: number;
 }
 
 export async function insertMetrics(rows: MetricsRow[]): Promise<void> {
@@ -349,5 +350,6 @@ function buildAggregated(row: Record<string, number>): AggregatedMetrics {
     followers,
     cost_per_follower: followers > 0 ? spend / followers : 0,
     video_views,
+    cost_per_video_view: video_views > 0 ? spend / video_views : 0,
   };
 }

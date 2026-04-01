@@ -66,7 +66,7 @@ const CAMPAIGN_TYPE_META: Record<CampaignType, {
   costKey: keyof Metrics;
 }> = {
   WPP:   { label: 'WhatsApp',    badge: 'bg-green-100 text-green-700',  costLabel: 'Custo/MSG',   costKey: 'cost_per_message' },
-  VP:    { label: 'Vídeo Play',  badge: 'bg-purple-100 text-purple-700', costLabel: 'Custo/View', costKey: 'cpl' },
+  VP:    { label: 'Visita ao Perfil', badge: 'bg-purple-100 text-purple-700', costLabel: 'Custo/View', costKey: 'cost_per_video_view' },
   LEAD:  { label: 'Lead Ads',    badge: 'bg-brand-100 text-brand-700',  costLabel: 'CPL',         costKey: 'cpl' },
   FORM:  { label: 'Formulário',  badge: 'bg-orange-100 text-orange-700', costLabel: 'CPL',        costKey: 'cpl' },
   OTHER: { label: 'Outros',      badge: 'bg-gray-100 text-gray-600',    costLabel: 'CPL',         costKey: 'cpl' },

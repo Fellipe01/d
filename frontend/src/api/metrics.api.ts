@@ -16,6 +16,7 @@ export interface Metrics {
   followers: number;
   cost_per_follower: number;
   video_views: number;
+  cost_per_video_view: number;
 }
 
 export interface KpiResult {
