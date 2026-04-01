@@ -328,7 +328,10 @@ async function syncInsights(
       getAction(ins.actions, 'onsite_conversion.lead_grouped');
     const messages = getAction(ins.actions, 'onsite_conversion.messaging_conversation_started_7d') ||
       getAction(ins.actions, 'onsite_conversion.total_messaging_connection');
-    const followers = getAction(ins.actions, 'like');
+    // Instagram followers gained from ad (onsite_conversion.follow = new followers)
+    const followers = getAction(ins.actions, 'onsite_conversion.follow') ||
+      getAction(ins.actions, 'follow') ||
+      getAction(ins.actions, 'like');
     // Use standard 3-second video views (shown in Meta Ads Manager) as primary.
     const videoViews =
       getAction(ins.actions, 'video_view') ||
