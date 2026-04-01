@@ -599,6 +599,71 @@ function CreativeRow({ creative, funnelMap, dateRange }: {
   );
 }
 
+// ── Group summary bar ────────────────────────────────────────────────────────
+
+function GroupSummary({ items, type }: {
+  items: Array<{ campaign: Campaign; metrics: Metrics }>;
+  type: CampaignType;
+}) {
+  const totSpend       = items.reduce((s, i) => s + (i.metrics.spend        ?? 0), 0);
+  const totImpressions = items.reduce((s, i) => s + (i.metrics.impressions  ?? 0), 0);
+  const totClicks      = items.reduce((s, i) => s + (i.metrics.clicks       ?? 0), 0);
+  const totLeads       = items.reduce((s, i) => s + (i.metrics.leads        ?? 0), 0);
+  const totMessages    = items.reduce((s, i) => s + (i.metrics.messages     ?? 0), 0);
+  const totVideoViews  = items.reduce((s, i) => s + (i.metrics.video_views  ?? 0), 0);
+
+  const avgCtr  = safe(totClicks, totImpressions) * 100;
+  const avgCpm  = safe(totSpend, totImpressions) * 1000;
+  const avgFreq = items.reduce((s, i) => s + (i.metrics.frequency ?? 0), 0) / (items.length || 1);
+
+  const pills: { label: string; value: string; highlight?: boolean }[] = [
+    { label: 'Total gasto',   value: fmtCurrency(totSpend),          highlight: true },
+    { label: 'Impressões',    value: fmtNum(totImpressions) },
+    { label: 'CTR médio',     value: fmtPct(avgCtr),                  highlight: true },
+    { label: 'CPM médio',     value: fmtCurrency(avgCpm) },
+    { label: 'Freq. média',   value: avgFreq.toFixed(2) + 'x' },
+  ];
+
+  if (type === 'WPP') {
+    pills.push(
+      { label: 'Mensagens',     value: fmtNum(totMessages),           highlight: true },
+      { label: 'Custo/MSG',     value: fmtCurrency(safe(totSpend, totMessages)), highlight: true },
+    );
+  } else if (type === 'VP') {
+    pills.push(
+      { label: 'Video Views',   value: fmtNum(totVideoViews),         highlight: true },
+      { label: 'Custo/View',    value: fmtCurrency(safe(totSpend, totVideoViews)), highlight: true },
+    );
+  } else {
+    pills.push(
+      { label: 'Leads',         value: fmtNum(totLeads),              highlight: true },
+      { label: 'CPL médio',     value: fmtCurrency(safe(totSpend, totLeads)), highlight: true },
+    );
+  }
+
+  const color = type === 'WPP' ? 'bg-green-50 border-green-200' :
+                type === 'VP'  ? 'bg-purple-50 border-purple-200' :
+                type === 'LEAD'? 'bg-brand-50 border-brand-200' :
+                type === 'FORM'? 'bg-orange-50 border-orange-200' :
+                                 'bg-gray-50 border-gray-200';
+
+  return (
+    <div className={`mt-2 mb-6 rounded-xl border px-4 py-3 ${color}`}>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+        Resumo {CAMPAIGN_TYPE_META[type].label} — {items.length} campanha{items.length > 1 ? 's' : ''}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {pills.map(p => (
+          <div key={p.label} className={`flex flex-col items-start px-3 py-1.5 rounded-lg border ${p.highlight ? 'bg-white border-gray-200 shadow-sm' : 'bg-white/60 border-transparent'}`}>
+            <span className={`text-sm font-bold leading-tight ${p.highlight ? 'text-gray-900' : 'text-gray-600'}`}>{p.value}</span>
+            <span className="text-[10px] text-gray-400 mt-0.5 whitespace-nowrap">{p.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Table wrapper ─────────────────────────────────────────────────────────────
 
 function DataTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
@@ -685,6 +750,9 @@ function GroupedCampaigns({
                 />
               ))}
             </DataTable>
+
+            {/* Summary bar */}
+            <GroupSummary items={items} type={type} />
           </div>
         );
       })}
