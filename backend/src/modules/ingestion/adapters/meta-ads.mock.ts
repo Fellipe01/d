@@ -163,6 +163,7 @@ async function _seedMockData(clientId: number): Promise<void> {
             cost_per_follower: 0,
             video_views: creative.type === 'video' || creative.type === 'reel' ? randInt(100, 800) : 0,
             hook_rate: creative.type === 'video' ? rand(15, 60) : 0,
+            profile_visits: 0,
           });
         }
         await insertMetrics(creativeMetrics);
@@ -202,6 +203,7 @@ async function _seedMockData(clientId: number): Promise<void> {
         cost_per_follower: 0,
         video_views: 0,
         hook_rate: 0,
+        profile_visits: 0,
       });
     }
     await insertMetrics(campMetrics);

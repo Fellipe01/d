@@ -21,6 +21,7 @@ export interface MetricsRow {
   cost_per_follower: number;
   video_views: number;
   hook_rate: number;
+  profile_visits: number;
 }
 
 export interface AggregatedMetrics {
@@ -40,6 +41,8 @@ export interface AggregatedMetrics {
   cost_per_follower: number;
   video_views: number;
   cost_per_video_view: number;
+  profile_visits: number;
+  cost_per_profile_visit: number;
 }
 
 export async function insertMetrics(rows: MetricsRow[]): Promise<void> {
@@ -64,7 +67,7 @@ export async function getClientMetrics(clientId: number, start: string, end: str
   // Step 2: Get metrics for those campaign IDs
   const { data: rows, error } = await supabase
     .from('metrics_daily')
-    .select('spend,impressions,reach,clicks,leads,messages,followers,video_views')
+    .select('spend,impressions,reach,clicks,leads,messages,followers,video_views,profile_visits')
     .eq('entity_type', 'campaign')
     .in('entity_id', campaignIds)
     .gte('date', start)
@@ -77,7 +80,7 @@ export async function getClientMetrics(clientId: number, start: string, end: str
 export async function getCampaignMetrics(campaignId: number, start: string, end: string): Promise<AggregatedMetrics> {
   const { data: rows, error } = await supabase
     .from('metrics_daily')
-    .select('spend,impressions,reach,clicks,leads,messages,followers,video_views')
+    .select('spend,impressions,reach,clicks,leads,messages,followers,video_views,profile_visits')
     .eq('entity_type', 'campaign')
     .eq('entity_id', campaignId)
     .gte('date', start)
@@ -89,7 +92,7 @@ export async function getCampaignMetrics(campaignId: number, start: string, end:
 export async function getCreativeMetrics(creativeId: number, start: string, end: string): Promise<AggregatedMetrics> {
   const { data: rows, error } = await supabase
     .from('metrics_daily')
-    .select('spend,impressions,reach,clicks,leads,messages,followers,video_views')
+    .select('spend,impressions,reach,clicks,leads,messages,followers,video_views,profile_visits')
     .eq('entity_type', 'creative')
     .eq('entity_id', creativeId)
     .gte('date', start)
@@ -319,8 +322,9 @@ function sumRows(rows: Array<Record<string, number>>): Record<string, number> {
       messages: acc.messages + (row.messages || 0),
       followers: acc.followers + (row.followers || 0),
       video_views: acc.video_views + (row.video_views || 0),
+      profile_visits: acc.profile_visits + (row.profile_visits || 0),
     }),
-    { spend: 0, impressions: 0, reach: 0, clicks: 0, leads: 0, messages: 0, followers: 0, video_views: 0 }
+    { spend: 0, impressions: 0, reach: 0, clicks: 0, leads: 0, messages: 0, followers: 0, video_views: 0, profile_visits: 0 }
   );
 }
 
@@ -333,6 +337,7 @@ function buildAggregated(row: Record<string, number>): AggregatedMetrics {
   const messages = row?.messages || 0;
   const followers = row?.followers || 0;
   const video_views = row?.video_views || 0;
+  const profile_visits = row?.profile_visits || 0;
 
   return {
     spend,
@@ -351,5 +356,7 @@ function buildAggregated(row: Record<string, number>): AggregatedMetrics {
     cost_per_follower: followers > 0 ? spend / followers : 0,
     video_views,
     cost_per_video_view: video_views > 0 ? spend / video_views : 0,
+    profile_visits,
+    cost_per_profile_visit: profile_visits > 0 ? spend / profile_visits : 0,
   };
 }

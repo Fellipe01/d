@@ -324,11 +324,15 @@ async function syncInsights(
       getAction(ins.actions, 'onsite_conversion.total_messaging_connection');
     const followers = getAction(ins.actions, 'like');
     // Use standard 3-second video views (shown in Meta Ads Manager) as primary.
-    // video_p25_watched_actions (25% watched) under-counts for short/engagement videos.
     const videoViews =
-      getAction(ins.actions, 'video_view') ||                               // 3-sec standard
-      getAction(ins.actions, 'onsite_conversion.video_view') ||            // onsite variant
-      Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);             // 25% fallback
+      getAction(ins.actions, 'video_view') ||
+      getAction(ins.actions, 'onsite_conversion.video_view') ||
+      Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);
+    // Profile visits — primary metric for [VP] campaigns
+    const profileVisits =
+      getAction(ins.actions, 'onsite_conversion.profile_visit') ||
+      getAction(ins.actions, 'page_engagement') ||
+      getAction(ins.actions, 'post_engagement');
 
     return {
       entity_type: entityType,
@@ -350,6 +354,7 @@ async function syncInsights(
       cost_per_follower: followers > 0 ? spend / followers : 0,
       video_views: videoViews,
       hook_rate: 0,
+      profile_visits: profileVisits,
     };
   });
 

@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
   cost_per_follower NUMERIC DEFAULT 0,
   video_views       BIGINT DEFAULT 0,
   hook_rate         NUMERIC DEFAULT 0,
+  profile_visits    BIGINT DEFAULT 0,
   ingested_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (entity_type, entity_id, date)
 );
