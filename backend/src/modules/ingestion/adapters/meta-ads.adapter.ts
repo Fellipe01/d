@@ -329,8 +329,10 @@ async function syncInsights(
       getAction(ins.actions, 'onsite_conversion.video_view') ||
       Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);
     // Profile visits — primary metric for [VP] campaigns
-    // onsite_conversion.profile_visit = Instagram/Facebook profile visits from the ad
-    // ig_profile_visit = alternate action type some accounts report
+    // DEBUG: log all action types to find the correct one
+    if (ins.actions?.length) {
+      console.log(`[Meta] actions for ${ins.date_start}:`, ins.actions.map((a: { action_type: string; value: string }) => `${a.action_type}=${a.value}`).join(', '));
+    }
     const profileVisits =
       getAction(ins.actions, 'onsite_conversion.profile_visit') ||
       getAction(ins.actions, 'ig_profile_visit');
