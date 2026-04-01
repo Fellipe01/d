@@ -34,7 +34,8 @@ function typeLabel(type: string, custom: string | null) {
 }
 
 function isOverdue(task: Task) {
-  return task.status === 'pending' && new Date(task.due_date) < new Date(new Date().toDateString());
+  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+  return task.status === 'pending' && task.due_date < todayStr;
 }
 
 function isDueSoon(task: Task) {

@@ -41,7 +41,8 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 function isOverdue(dueDate: string, status: string) {
-  return status === 'pending' && new Date(dueDate) < new Date(new Date().toDateString());
+  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+  return status === 'pending' && dueDate < todayStr;
 }
 
 // ── Painel de relatórios ──────────────────────────────────────────────────────
