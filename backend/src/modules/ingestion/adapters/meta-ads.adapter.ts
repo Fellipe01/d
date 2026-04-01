@@ -297,6 +297,7 @@ async function syncInsights(
     'date_start', 'spend', 'impressions', 'reach', 'frequency',
     'clicks', 'ctr', 'cpc', 'cpm', 'actions',
     'video_p25_watched_actions',
+    'profile_visits',
   ].join(',');
 
   let insights: MetaInsight[];
@@ -329,13 +330,20 @@ async function syncInsights(
       getAction(ins.actions, 'onsite_conversion.video_view') ||
       Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);
     // Profile visits — primary metric for [VP] campaigns
-    // DEBUG: log all action types to find the correct one
+    // DEBUG: log full insight object keys and values to find where profile_visits lives
+    const insRaw = ins as unknown as Record<string, unknown>;
+    const knownKeys = new Set(['date_start','spend','impressions','reach','frequency','clicks','ctr','cpc','cpm','actions','video_p25_watched_actions','id']);
+    const extraKeys = Object.keys(insRaw).filter(k => !knownKeys.has(k));
+    if (extraKeys.length) {
+      console.log(`[Meta DEBUG] ${ins.date_start} extra fields:`, extraKeys.map(k => `${k}=${JSON.stringify(insRaw[k])}`).join(', '));
+    }
     if (ins.actions?.length) {
       console.log(`[Meta] actions for ${ins.date_start}:`, ins.actions.map((a: { action_type: string; value: string }) => `${a.action_type}=${a.value}`).join(', '));
     }
     const profileVisits =
       getAction(ins.actions, 'onsite_conversion.profile_visit') ||
-      getAction(ins.actions, 'ig_profile_visit');
+      getAction(ins.actions, 'ig_profile_visit') ||
+      Number(insRaw.profile_visits ?? 0);
 
     return {
       entity_type: entityType,
