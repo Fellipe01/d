@@ -104,6 +104,7 @@ interface MetaInsight {
   actions?: Array<{ action_type: string; value: string }>;
   video_p25_watched_actions?: Array<{ value: string }>;
   video_avg_time_watched_actions?: Array<{ value: string }>;
+  results?: string; // primary result for the campaign (e.g. profile visits for VP)
 }
 
 function getAction(actions: MetaInsight['actions'], type: string): number {
@@ -197,8 +198,9 @@ async function _syncMetaAdsReal(clientId: number): Promise<void> {
     }
 
     // ── 2. Fetch campaign insights (only active campaigns) ─────────────────
+    const isVP = mc.name.toUpperCase().includes('[VP]');
     if (mc.status === 'ACTIVE') {
-      await syncInsights('campaign', campId, mc.id, since, until);
+      await syncInsights('campaign', campId, mc.id, since, until, isVP);
     }
 
     // ── 3. Fetch ad sets ────────────────────────────────────────────────────
@@ -273,7 +275,7 @@ async function _syncMetaAdsReal(clientId: number): Promise<void> {
 
         // Sync creative-level insights (only active ads)
         if (ma.status === 'ACTIVE') {
-          await syncInsights('creative', creativeId, ma.id, since, until);
+          await syncInsights('creative', creativeId, ma.id, since, until, isVP);
         }
       }
       await sleep(200); // small pause between ad sets
@@ -292,13 +294,17 @@ async function syncInsights(
   metaId: string,
   since: string,
   until: string,
+  isVP = false,
 ): Promise<void> {
-  const fields = [
+  const baseFields = [
     'date_start', 'spend', 'impressions', 'reach', 'frequency',
     'clicks', 'ctr', 'cpc', 'cpm', 'actions',
     'video_p25_watched_actions',
-    'profile_visits',
-  ].join(',');
+  ];
+  // For VP campaigns, request `results` which returns the primary campaign result
+  // (profile visits for OUTCOME_ENGAGEMENT campaigns optimized for profile visits)
+  if (isVP) baseFields.push('results');
+  const fields = baseFields.join(',');
 
   let insights: MetaInsight[];
   try {
@@ -329,21 +335,11 @@ async function syncInsights(
       getAction(ins.actions, 'video_view') ||
       getAction(ins.actions, 'onsite_conversion.video_view') ||
       Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);
-    // Profile visits — primary metric for [VP] campaigns
-    // DEBUG: log full insight object keys and values to find where profile_visits lives
-    const insRaw = ins as unknown as Record<string, unknown>;
-    const knownKeys = new Set(['date_start','spend','impressions','reach','frequency','clicks','ctr','cpc','cpm','actions','video_p25_watched_actions','id']);
-    const extraKeys = Object.keys(insRaw).filter(k => !knownKeys.has(k));
-    if (extraKeys.length) {
-      console.log(`[Meta DEBUG] ${ins.date_start} extra fields:`, extraKeys.map(k => `${k}=${JSON.stringify(insRaw[k])}`).join(', '));
-    }
-    if (ins.actions?.length) {
-      console.log(`[Meta] actions for ${ins.date_start}:`, ins.actions.map((a: { action_type: string; value: string }) => `${a.action_type}=${a.value}`).join(', '));
-    }
-    const profileVisits =
-      getAction(ins.actions, 'onsite_conversion.profile_visit') ||
-      getAction(ins.actions, 'ig_profile_visit') ||
-      Number(insRaw.profile_visits ?? 0);
+    // Profile visits — for VP campaigns use `results` (primary campaign result = profile visits)
+    const profileVisits = isVP
+      ? Number(ins.results ?? 0)
+      : getAction(ins.actions, 'onsite_conversion.profile_visit') ||
+        getAction(ins.actions, 'ig_profile_visit');
 
     return {
       entity_type: entityType,
