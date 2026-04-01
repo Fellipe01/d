@@ -340,16 +340,11 @@ async function syncInsights(
     if (isVP) {
       const r = ins.results;
       if (Array.isArray(r) && r.length > 0) {
-        // Log raw object to see actual property names
-        console.log(`[Meta VP] ${ins.date_start} results raw:`, JSON.stringify(r));
-        // Meta returns {indicator, value} not {action_type, value}
-        const item = r[0] as Record<string, unknown>;
-        profileVisits = Number(item.value ?? 0);
+        // Meta results format: [{indicator: "profile_visit_view", values: [{value: "85"}]}]
+        const item = r[0] as { indicator: string; values?: Array<{ value: string }> };
+        profileVisits = Number(item.values?.[0]?.value ?? 0);
       } else if (typeof r === 'string' && r) {
         profileVisits = Number(r);
-        console.log(`[Meta VP] ${ins.date_start} results(scalar): ${r}`);
-      } else {
-        console.log(`[Meta VP] ${ins.date_start} results empty/undefined`);
       }
       if (!profileVisits) {
         profileVisits = getAction(ins.actions, 'onsite_conversion.profile_visit') ||
