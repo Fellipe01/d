@@ -431,9 +431,7 @@ function CampaignRow({ campaign, metrics, funnelMap, campaignType }: {
   };
 
   // Context-aware cost metric value
-  const costValue = campaignType === 'WPP'
-    ? fmtCurrency(metrics.cost_per_message)
-    : fmtCurrency(metrics.cpl);
+  const costValue = fmtCurrency((metrics[typeMeta.costKey] as number) ?? 0);
 
   return (
     <>
