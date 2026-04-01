@@ -329,6 +329,9 @@ async function syncInsights(
     const messages = getAction(ins.actions, 'onsite_conversion.messaging_conversation_started_7d') ||
       getAction(ins.actions, 'onsite_conversion.total_messaging_connection');
     // Instagram followers gained from ad (onsite_conversion.follow = new followers)
+    if (isVP && ins.actions?.length) {
+      console.log(`[Meta VP followers] ${ins.date_start}:`, ins.actions.map((a: {action_type:string;value:string}) => `${a.action_type}=${a.value}`).join(', '));
+    }
     const followers = getAction(ins.actions, 'onsite_conversion.follow') ||
       getAction(ins.actions, 'follow') ||
       getAction(ins.actions, 'like');
