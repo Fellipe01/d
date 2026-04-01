@@ -102,10 +102,10 @@ interface MetaInsight {
   cpc: string;
   cpm: string;
   actions?: Array<{ action_type: string; value: string }>;
-  other_actions?: Array<{ action_type: string; value: string }>;
   video_p25_watched_actions?: Array<{ value: string }>;
   video_avg_time_watched_actions?: Array<{ value: string }>;
-  results?: string;
+  // results can be a plain number string OR an array of {action_type, value}
+  results?: string | Array<{ action_type: string; value: string }>;
 }
 
 function getAction(actions: MetaInsight['actions'], type: string): number {
@@ -299,7 +299,7 @@ async function syncInsights(
 ): Promise<void> {
   const baseFields = [
     'date_start', 'spend', 'impressions', 'reach', 'frequency',
-    'clicks', 'ctr', 'cpc', 'cpm', 'actions', 'other_actions',
+    'clicks', 'ctr', 'cpc', 'cpm', 'actions',
     'video_p25_watched_actions',
   ];
   if (isVP) baseFields.push('results');
@@ -334,25 +334,31 @@ async function syncInsights(
       getAction(ins.actions, 'video_view') ||
       getAction(ins.actions, 'onsite_conversion.video_view') ||
       Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);
-    // Profile visits — for VP campaigns
-    // Try every known location where Meta reports this metric
-    const getOtherAction = (type: string) =>
-      Number(ins.other_actions?.find((a: { action_type: string; value: string }) => a.action_type === type)?.value ?? 0);
-
+    // Profile visits — for VP campaigns, use `results` field (primary campaign result)
+    // results can be: a plain string "449", or an array [{action_type, value}], or undefined
+    let profileVisits = 0;
     if (isVP) {
-      const allActions = [...(ins.actions ?? []), ...(ins.other_actions ?? [])];
-      console.log(`[Meta VP] ${ins.date_start} results=${ins.results ?? 'N/A'} other_actions:`, (ins.other_actions ?? []).map((a: { action_type: string; value: string }) => `${a.action_type}=${a.value}`).join(', ') || 'none');
+      const r = ins.results;
+      if (Array.isArray(r)) {
+        // array format — sum all entries (there's usually just one)
+        profileVisits = r.reduce((s, a) => s + Number(a.value ?? 0), 0);
+        console.log(`[Meta VP] ${ins.date_start} results(array):`, r.map(a => `${a.action_type}=${a.value}`).join(', '));
+      } else if (r !== undefined && r !== null) {
+        profileVisits = Number(r);
+        console.log(`[Meta VP] ${ins.date_start} results(scalar): ${r}`);
+      } else {
+        console.log(`[Meta VP] ${ins.date_start} results: undefined`);
+      }
+      // fallback to actions array just in case
+      if (!profileVisits) {
+        profileVisits = getAction(ins.actions, 'onsite_conversion.profile_visit') ||
+          getAction(ins.actions, 'ig_profile_visit') ||
+          getAction(ins.actions, 'instagram_profile_visit');
+      }
+    } else {
+      profileVisits = getAction(ins.actions, 'onsite_conversion.profile_visit') ||
+        getAction(ins.actions, 'ig_profile_visit');
     }
-
-    const profileVisits = isVP
-      ? (Number(ins.results ?? 0) ||
-         getAction(ins.actions, 'onsite_conversion.profile_visit') ||
-         getAction(ins.actions, 'ig_profile_visit') ||
-         getOtherAction('instagram_profile_visit') ||
-         getOtherAction('onsite_conversion.profile_visit') ||
-         getOtherAction('ig_profile_visit'))
-      : (getAction(ins.actions, 'onsite_conversion.profile_visit') ||
-         getAction(ins.actions, 'ig_profile_visit'));
 
     return {
       entity_type: entityType,
