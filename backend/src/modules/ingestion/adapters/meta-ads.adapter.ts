@@ -339,21 +339,21 @@ async function syncInsights(
     let profileVisits = 0;
     if (isVP) {
       const r = ins.results;
-      if (Array.isArray(r)) {
-        // array format — sum all entries (there's usually just one)
-        profileVisits = r.reduce((s, a) => s + Number(a.value ?? 0), 0);
-        console.log(`[Meta VP] ${ins.date_start} results(array):`, r.map(a => `${a.action_type}=${a.value}`).join(', '));
-      } else if (r !== undefined && r !== null) {
+      if (Array.isArray(r) && r.length > 0) {
+        // Log raw object to see actual property names
+        console.log(`[Meta VP] ${ins.date_start} results raw:`, JSON.stringify(r));
+        // Meta returns {indicator, value} not {action_type, value}
+        const item = r[0] as Record<string, unknown>;
+        profileVisits = Number(item.value ?? 0);
+      } else if (typeof r === 'string' && r) {
         profileVisits = Number(r);
         console.log(`[Meta VP] ${ins.date_start} results(scalar): ${r}`);
       } else {
-        console.log(`[Meta VP] ${ins.date_start} results: undefined`);
+        console.log(`[Meta VP] ${ins.date_start} results empty/undefined`);
       }
-      // fallback to actions array just in case
       if (!profileVisits) {
         profileVisits = getAction(ins.actions, 'onsite_conversion.profile_visit') ||
-          getAction(ins.actions, 'ig_profile_visit') ||
-          getAction(ins.actions, 'instagram_profile_visit');
+          getAction(ins.actions, 'ig_profile_visit');
       }
     } else {
       profileVisits = getAction(ins.actions, 'onsite_conversion.profile_visit') ||
