@@ -375,10 +375,13 @@ export default function DashboardPage() {
     id: number;
     name: string;
     type: string;
+    campaign_name: string | null;
     spend: number;
     ctr: number;
     cpl: number;
     leads: number;
+    messages: number;
+    cost_per_message: number;
     frequency: number;
   }[];
 
@@ -517,7 +520,11 @@ export default function DashboardPage() {
                       <span className="text-gray-300">·</span>
                       <span>CTR {fmtPct(c.ctr)}</span>
                       <span className="text-gray-300">·</span>
-                      <span>CPL {fmtCurrency(c.cpl)}</span>
+                      {c.campaign_name?.toUpperCase().includes('[WPP]') ? (
+                        <span>C/MSG {fmtCurrency(c.cost_per_message)}</span>
+                      ) : (
+                        <span>CPL {fmtCurrency(c.cpl)}</span>
+                      )}
                       <span className="text-gray-300">·</span>
                       <span>Freq {c.frequency?.toFixed(1)}</span>
                     </div>
