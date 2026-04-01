@@ -357,8 +357,6 @@ function MetricsSummary({ clientId, dateRange }: { clientId: number; dateRange: 
     { label: 'Mensagens',    value: fmtNum(m.messages) },
     { label: 'C/Mensagem',   value: fmtCurrency(m.cost_per_message) },
     { label: 'Video Views',  value: fmtNum(m.video_views) },
-    { label: 'Seguidores',   value: fmtNum(m.followers) },
-    { label: 'C/Seguidor',   value: fmtCurrency(m.cost_per_follower) },
   ];
 
   const pills = tab === 'midia' ? midia : resultados;
@@ -629,12 +627,9 @@ function GroupSummary({ items, type }: {
     );
   } else if (type === 'VP') {
     const totProfileVisits = items.reduce((s, i) => s + ((i.metrics as { profile_visits?: number }).profile_visits ?? 0), 0);
-    const totFollowers     = items.reduce((s, i) => s + (i.metrics.followers ?? 0), 0);
     pills.push(
       { label: 'Visitas ao Perfil', value: fmtNum(totProfileVisits),                          highlight: true },
       { label: 'Custo/Visita',      value: fmtCurrency(safe(totSpend, totProfileVisits)),       highlight: true },
-      { label: 'Seguidores',        value: fmtNum(totFollowers) },
-      { label: 'Custo/Seguidor',    value: totFollowers > 0 ? fmtCurrency(safe(totSpend, totFollowers)) : '—' },
     );
   } else {
     pills.push(
