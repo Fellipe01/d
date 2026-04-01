@@ -104,8 +104,8 @@ interface MetaInsight {
   actions?: Array<{ action_type: string; value: string }>;
   video_p25_watched_actions?: Array<{ value: string }>;
   video_avg_time_watched_actions?: Array<{ value: string }>;
-  // results can be a plain number string OR an array of {action_type, value}
-  results?: string | Array<{ action_type: string; value: string }>;
+  // results is an array of {indicator, values} from Meta's primary result field
+  results?: string | Array<{ indicator: string; values?: Array<{ value: string }> }>;
 }
 
 function getAction(actions: MetaInsight['actions'], type: string): number {
