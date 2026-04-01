@@ -87,22 +87,14 @@ function buildObjectiveCards(
           icon: '💵',
         });
         break;
-      case 'trafego': {
-        const hasProfileVisits = (m.profile_visits || 0) > 0;
+      case 'trafego':
+        cards.push({ label: 'Cliques', value: fmtNum(m.clicks || 0), icon: '🔗' });
         cards.push({
-          label: hasProfileVisits ? 'Visitas ao Perfil' : 'Cliques',
-          value: fmtNum(hasProfileVisits ? m.profile_visits : m.clicks || 0),
-          icon: '🔗',
-        });
-        cards.push({
-          label: 'Custo/Visita',
-          value: hasProfileVisits
-            ? fmtCurrency(m.cost_per_profile_visit || 0)
-            : m.clicks > 0 ? fmtCurrency(m.cpc || 0) : '—',
+          label: 'CPC',
+          value: m.clicks > 0 ? fmtCurrency(m.cpc || 0) : '—',
           icon: '🖱️',
         });
         break;
-      }
       case 'alcance':
         cards.push({ label: 'Video Views', value: fmtNum(m.video_views || 0), icon: '▶️' });
         cards.push({
