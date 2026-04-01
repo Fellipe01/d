@@ -102,9 +102,10 @@ interface MetaInsight {
   cpc: string;
   cpm: string;
   actions?: Array<{ action_type: string; value: string }>;
+  other_actions?: Array<{ action_type: string; value: string }>;
   video_p25_watched_actions?: Array<{ value: string }>;
   video_avg_time_watched_actions?: Array<{ value: string }>;
-  results?: string; // primary result for the campaign (e.g. profile visits for VP)
+  results?: string;
 }
 
 function getAction(actions: MetaInsight['actions'], type: string): number {
@@ -298,11 +299,9 @@ async function syncInsights(
 ): Promise<void> {
   const baseFields = [
     'date_start', 'spend', 'impressions', 'reach', 'frequency',
-    'clicks', 'ctr', 'cpc', 'cpm', 'actions',
+    'clicks', 'ctr', 'cpc', 'cpm', 'actions', 'other_actions',
     'video_p25_watched_actions',
   ];
-  // For VP campaigns, request `results` which returns the primary campaign result
-  // (profile visits for OUTCOME_ENGAGEMENT campaigns optimized for profile visits)
   if (isVP) baseFields.push('results');
   const fields = baseFields.join(',');
 
@@ -335,11 +334,25 @@ async function syncInsights(
       getAction(ins.actions, 'video_view') ||
       getAction(ins.actions, 'onsite_conversion.video_view') ||
       Number(ins.video_p25_watched_actions?.[0]?.value ?? 0);
-    // Profile visits — for VP campaigns use `results` (primary campaign result = profile visits)
+    // Profile visits — for VP campaigns
+    // Try every known location where Meta reports this metric
+    const getOtherAction = (type: string) =>
+      Number(ins.other_actions?.find((a: { action_type: string; value: string }) => a.action_type === type)?.value ?? 0);
+
+    if (isVP) {
+      const allActions = [...(ins.actions ?? []), ...(ins.other_actions ?? [])];
+      console.log(`[Meta VP] ${ins.date_start} results=${ins.results ?? 'N/A'} other_actions:`, (ins.other_actions ?? []).map((a: { action_type: string; value: string }) => `${a.action_type}=${a.value}`).join(', ') || 'none');
+    }
+
     const profileVisits = isVP
-      ? Number(ins.results ?? 0)
-      : getAction(ins.actions, 'onsite_conversion.profile_visit') ||
-        getAction(ins.actions, 'ig_profile_visit');
+      ? (Number(ins.results ?? 0) ||
+         getAction(ins.actions, 'onsite_conversion.profile_visit') ||
+         getAction(ins.actions, 'ig_profile_visit') ||
+         getOtherAction('instagram_profile_visit') ||
+         getOtherAction('onsite_conversion.profile_visit') ||
+         getOtherAction('ig_profile_visit'))
+      : (getAction(ins.actions, 'onsite_conversion.profile_visit') ||
+         getAction(ins.actions, 'ig_profile_visit'));
 
     return {
       entity_type: entityType,
