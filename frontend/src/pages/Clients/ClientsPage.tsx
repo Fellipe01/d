@@ -12,15 +12,16 @@ import EmptyState from '../../components/ui/EmptyState';
 // and expose a read-only view of objectives here.
 
 const KPI_OPTIONS = [
-  { name: 'cpl', label: 'CPL (Custo por Lead)', type: 'lower_is_better' },
-  { name: 'ctr', label: 'CTR (%)', type: 'higher_is_better' },
-  { name: 'cpc', label: 'CPC (Custo por Clique)', type: 'lower_is_better' },
-  { name: 'cpm', label: 'CPM (Custo por Mil)', type: 'lower_is_better' },
-  { name: 'frequency', label: 'Frequência Máxima', type: 'lower_is_better' },
-  { name: 'cost_per_message', label: 'Custo por Mensagem', type: 'lower_is_better' },
-  { name: 'cost_per_follower', label: 'Custo por Seguidor', type: 'lower_is_better' },
-  { name: 'leads', label: 'Leads Mínimos', type: 'higher_is_better' },
-  { name: 'roas', label: 'ROAS Mínimo', type: 'higher_is_better' },
+  { name: 'cpl',               label: 'CPL (Custo por Lead)',    type: 'lower_is_better'  },
+  { name: 'ctr',               label: 'CTR (%)',                  type: 'higher_is_better' },
+  { name: 'cpc',               label: 'CPC (Custo por Clique)',   type: 'lower_is_better'  },
+  { name: 'cpm',               label: 'CPM (Custo por Mil)',      type: 'lower_is_better'  },
+  { name: 'frequency',         label: 'Frequência Máxima',        type: 'lower_is_better'  },
+  { name: 'cost_per_message',  label: 'Custo por Mensagem',       type: 'lower_is_better'  },
+  { name: 'messages',          label: 'Mensagens Mínimas',        type: 'higher_is_better' },
+  { name: 'cost_per_follower', label: 'Custo por Seguidor',       type: 'lower_is_better'  },
+  { name: 'leads',             label: 'Leads Mínimos',            type: 'higher_is_better' },
+  { name: 'roas',              label: 'ROAS Mínimo',              type: 'higher_is_better' },
 ];
 
 const OBJECTIVES = ['leads', 'whatsapp', 'vendas', 'seguidores', 'trafego', 'alcance'];
@@ -501,26 +502,37 @@ function KPIModal({ client, onClose }: { client: Client; onClose: () => void }) 
     queryFn: () => clientsApi.getKpis(client.id),
   });
 
-  const [kpis, setKpis] = useState<Partial<ClientKpi>[]>([]);
+  // activeKpis: starts from what's in the DB, user can toggle/edit
+  const [activeKpis, setActiveKpis] = useState<Partial<ClientKpi>[] | null>(null);
 
-  const merged = KPI_OPTIONS.map(opt => {
-    const existing = existingKpis.find((k: ClientKpi) => k.kpi_name === opt.name);
-    const local = kpis.find(k => k.kpi_name === opt.name);
-    return { ...opt, ...(existing || {}), ...(local || {}), enabled: !!(existing || local) };
-  });
+  // Initialise once existingKpis loads
+  const working: Partial<ClientKpi>[] = activeKpis ?? (existingKpis as ClientKpi[]).map(k => ({ ...k }));
+
+  const isActive = (name: string) => working.some(k => k.kpi_name === name);
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data: Partial<ClientKpi>[]) => clientsApi.upsertKpis(client.id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['kpis', client.id] }); onClose(); },
   });
 
-  function updateKpi(name: string, field: string, value: unknown) {
-    setKpis(prev => {
-      const existing = prev.find(k => k.kpi_name === name);
-      if (existing) return prev.map(k => k.kpi_name === name ? { ...k, [field]: value } : k);
+  function toggleKpi(name: string, checked: boolean) {
+    const base = activeKpis ?? (existingKpis as ClientKpi[]).map(k => ({ ...k }));
+    if (checked) {
       const opt = KPI_OPTIONS.find(o => o.name === name)!;
-      return [...prev, { kpi_name: name, kpi_type: opt.type as ClientKpi['kpi_type'], target_value: 0, weight: 1.0, [field]: value }];
-    });
+      setActiveKpis([...base, { kpi_name: name, kpi_type: opt.type as ClientKpi['kpi_type'], target_value: 0, weight: 1.0 }]);
+    } else {
+      setActiveKpis(base.filter(k => k.kpi_name !== name));
+    }
+  }
+
+  function updateKpi(name: string, field: string, value: unknown) {
+    const base = activeKpis ?? (existingKpis as ClientKpi[]).map(k => ({ ...k }));
+    if (base.some(k => k.kpi_name === name)) {
+      setActiveKpis(base.map(k => k.kpi_name === name ? { ...k, [field]: value } : k));
+    } else {
+      const opt = KPI_OPTIONS.find(o => o.name === name)!;
+      setActiveKpis([...base, { kpi_name: name, kpi_type: opt.type as ClientKpi['kpi_type'], target_value: 0, weight: 1.0, [field]: value }]);
+    }
   }
 
   return (
@@ -542,23 +554,19 @@ function KPIModal({ client, onClose }: { client: Client; onClose: () => void }) 
 
         <div className="px-6 py-5 space-y-2">
           {KPI_OPTIONS.map(opt => {
-            const kpi = merged.find(k => k.name === opt.name)!;
-            const isActive = !!(existingKpis.find((k: ClientKpi) => k.kpi_name === opt.name) || kpis.find(k => k.kpi_name === opt.name));
+            const active = isActive(opt.name);
+            const kpiRow = working.find(k => k.kpi_name === opt.name);
             return (
               <label
                 key={opt.name}
                 className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                  isActive ? 'border-brand-300 bg-brand-50' : 'border-gray-100 hover:border-gray-200'
+                  active ? 'border-brand-300 bg-brand-50' : 'border-gray-100 hover:border-gray-200'
                 }`}
               >
                 <input
                   type="checkbox"
-                  checked={isActive}
-                  onChange={e =>
-                    e.target.checked
-                      ? updateKpi(opt.name, 'target_value', 0)
-                      : setKpis(prev => prev.filter(k => k.kpi_name !== opt.name))
-                  }
+                  checked={active}
+                  onChange={e => toggleKpi(opt.name, e.target.checked)}
                   className="mt-0.5 w-4 h-4 accent-brand-600"
                 />
                 <div className="flex-1 min-w-0">
@@ -567,14 +575,14 @@ function KPIModal({ client, onClose }: { client: Client; onClose: () => void }) 
                     {opt.type === 'lower_is_better' ? '↓ menor é melhor' : '↑ maior é melhor'}
                   </div>
                 </div>
-                {isActive && (
+                {active && (
                   <div className="flex items-center gap-3 shrink-0">
                     <div>
                       <div className="text-xs text-gray-500 mb-1">Meta</div>
                       <input
                         type="number"
                         step="0.01"
-                        defaultValue={kpi.target_value || 0}
+                        value={kpiRow?.target_value ?? 0}
                         onChange={e => updateKpi(opt.name, 'target_value', Number(e.target.value))}
                         className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
@@ -586,7 +594,7 @@ function KPIModal({ client, onClose }: { client: Client; onClose: () => void }) 
                         step="0.1"
                         min="0.5"
                         max="2.0"
-                        defaultValue={kpi.weight || 1.0}
+                        value={kpiRow?.weight ?? 1.0}
                         onChange={e => updateKpi(opt.name, 'weight', Number(e.target.value))}
                         className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
@@ -606,7 +614,7 @@ function KPIModal({ client, onClose }: { client: Client; onClose: () => void }) 
             Cancelar
           </button>
           <button
-            onClick={() => mutate(kpis.filter(k => k.kpi_name && k.target_value !== undefined))}
+            onClick={() => mutate(working.filter(k => k.kpi_name && k.target_value !== undefined))}
             disabled={isPending}
             className="flex-1 px-4 py-2.5 text-sm font-semibold bg-brand-600 text-white rounded-xl hover:bg-brand-700 disabled:opacity-50 transition-colors"
           >

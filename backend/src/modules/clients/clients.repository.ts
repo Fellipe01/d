@@ -126,6 +126,16 @@ export async function findKpisByClientId(clientId: number): Promise<ClientKpi[]>
 }
 
 export async function upsertKpis(clientId: number, kpis: UpsertKpiDto[]): Promise<ClientKpi[]> {
+  // Full replace: delete all existing KPIs for this client then insert the new set.
+  // This ensures unchecked KPIs are actually removed from the DB.
+  const { error: delError } = await supabase
+    .from('client_kpis')
+    .delete()
+    .eq('client_id', clientId);
+  if (delError) throw delError;
+
+  if (kpis.length === 0) return [];
+
   const rows = kpis.map(kpi => ({
     client_id: clientId,
     kpi_name: kpi.kpi_name,
@@ -136,9 +146,7 @@ export async function upsertKpis(clientId: number, kpis: UpsertKpiDto[]): Promis
     kpi_type: kpi.kpi_type ?? 'lower_is_better',
   }));
 
-  const { error } = await supabase
-    .from('client_kpis')
-    .upsert(rows, { onConflict: 'client_id,kpi_name' });
+  const { error } = await supabase.from('client_kpis').insert(rows);
   if (error) throw error;
 
   return findKpisByClientId(clientId);
