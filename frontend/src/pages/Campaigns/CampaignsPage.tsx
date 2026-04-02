@@ -34,10 +34,13 @@ interface CreativeRow {
   name: string;
   type: string;
   campaign_id: number | null;
+  campaign_name: string | null;
   spend: number;
   impressions: number;
   clicks: number;
   leads: number;
+  messages: number;
+  cost_per_message: number;
   frequency: number;
   ctr: number;
   cpl: number;
@@ -534,9 +537,15 @@ function CreativeRow({ creative, funnelMap, dateRange }: {
     queryFn: () => metricsApi.getCreativeMetrics(creative.id, dateRange.start, dateRange.end),
   });
 
+  const isWpp = getCampaignType(creative.campaign_name ?? '') === 'WPP';
   const funnel = funnelMap.get(creative.id);
   const spend = metrics?.spend ?? creative.spend;
   const leads = metrics?.leads ?? creative.leads;
+  const messages = metrics?.messages ?? creative.messages ?? 0;
+  const costLabel = isWpp ? 'C/MSG' : 'CPL';
+  const costValue = isWpp
+    ? fmtCurrency(spend > 0 && messages > 0 ? spend / messages : 0)
+    : fmtCurrency(creative.cpl);
 
   const typeColor = (t: string) => {
     if (t === 'video' || t === 'reel') return 'bg-purple-100 text-purple-700';
@@ -562,15 +571,17 @@ function CreativeRow({ creative, funnelMap, dateRange }: {
           <span className="text-xl font-extrabold text-gray-900">{fmtCurrency(spend)}</span>
           <div className="flex gap-2">
             <MetricPill label="CTR" value={fmtPct(creative.ctr)} />
-            <MetricPill label="CPL" value={fmtCurrency(creative.cpl)} highlight />
+            <MetricPill label={costLabel} value={costValue} highlight />
           </div>
         </div>
         <FunnelStrip
           spend={spend}
           leads={leads}
+          messages={messages}
           mql={funnel?.mql ?? 0}
           sql={funnel?.sql ?? 0}
           sales={funnel?.sales ?? 0}
+          isWpp={isWpp}
         />
       </div>
 
@@ -593,15 +604,17 @@ function CreativeRow({ creative, funnelMap, dateRange }: {
         </td>
         <td className="px-4 py-3.5 text-right whitespace-nowrap" />
         <td className="px-4 py-3.5 text-right whitespace-nowrap">
-          <span className="text-sm font-semibold text-brand-700">{fmtCurrency(creative.cpl)}</span>
+          <span className="text-sm font-semibold text-brand-700">{costValue}</span>
         </td>
         <td className="px-4 py-3.5">
           <FunnelStrip
             spend={spend}
             leads={leads}
+            messages={messages}
             mql={funnel?.mql ?? 0}
             sql={funnel?.sql ?? 0}
             sales={funnel?.sales ?? 0}
+            isWpp={isWpp}
           />
         </td>
       </tr>
