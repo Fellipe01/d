@@ -52,7 +52,8 @@ type CampaignType = 'WPP' | 'VP' | 'LEAD' | 'FORM' | 'OTHER';
 
 function getCampaignType(name: string): CampaignType {
   const upper = name.toUpperCase();
-  if (upper.includes('[WPP]')) return 'WPP';
+  // Match [WPP] or standalone word WPP (e.g. "[BIDCAP] - WPP - BPC...")
+  if (upper.includes('[WPP]') || /\bWPP\b/.test(upper)) return 'WPP';
   if (upper.includes('[VP]'))  return 'VP';
   if (upper.includes('[LEAD]')) return 'LEAD';
   if (upper.includes('[FORM]')) return 'FORM';
@@ -164,19 +165,21 @@ function SkeletonTableRow() {
 
 // ── Funnel strip (inline) ─────────────────────────────────────────────────────
 
-function FunnelStrip({ spend, leads, mql, sql, sales }: {
-  spend: number; leads: number; mql: number; sql: number; sales: number;
+function FunnelStrip({ spend, leads, messages = 0, mql, sql, sales, isWpp = false }: {
+  spend: number; leads: number; messages?: number; mql: number; sql: number; sales: number; isWpp?: boolean;
 }) {
-  const cpl    = safe(spend, leads);
+  const firstCount = isWpp ? messages : leads;
+  const firstLabel = isWpp ? 'Mensagens' : 'Leads';
+  const cpl    = safe(spend, firstCount);
   const cpmql  = safe(spend, mql);
   const cpsql  = safe(spend, sql);
   const cac    = safe(spend, sales);
-  const pMql   = pct(mql, leads);
+  const pMql   = pct(mql, firstCount);
   const pSql   = pct(sql, mql);
   const pVenda = pct(sales, sql);
 
   const steps = [
-    { count: leads, label: 'Leads',  cost: leads > 0 ? fmtCurrency(cpl) : null,   color: 'text-gray-700',   active: leads > 0 },
+    { count: firstCount, label: firstLabel, cost: firstCount > 0 ? fmtCurrency(cpl) : null, color: 'text-gray-700', active: firstCount > 0 },
     { count: mql,   label: 'MQL',    cost: mql > 0   ? fmtCurrency(cpmql) : null, color: 'text-blue-600',   conv: leads > 0 ? fmtPct(pMql) : null, active: mql > 0 },
     { count: sql,   label: 'SQL',    cost: sql > 0   ? fmtCurrency(cpsql) : null, color: 'text-purple-600', conv: mql > 0   ? fmtPct(pSql) : null, active: sql > 0 },
     { count: sales, label: 'Vendas', cost: sales > 0 ? `CAC ${fmtCurrency(cac)}` : null, color: 'text-success-700', conv: sql > 0 ? fmtPct(pVenda) : null, active: sales > 0 },
@@ -209,20 +212,24 @@ function FunnelStrip({ spend, leads, mql, sql, sales }: {
 
 // ── Funil Geral ───────────────────────────────────────────────────────────────
 
-function FunnelGeral({ spend, leads, mql, sql, sales, revenue }: {
-  spend: number; leads: number; mql: number; sql: number; sales: number; revenue: number;
+function FunnelGeral({ spend, leads, messages = 0, mql, sql, sales, revenue }: {
+  spend: number; leads: number; messages?: number; mql: number; sql: number; sales: number; revenue: number;
 }) {
-  const cpl    = safe(spend, leads);
+  // Use messages as first step if there are more messages than leads (WPP campaigns)
+  const isWpp = messages > leads;
+  const firstCount = isWpp ? messages : leads;
+  const firstLabel = isWpp ? 'Mensagens' : 'Leads';
+  const cpl    = safe(spend, firstCount);
   const cpmql  = safe(spend, mql);
   const cpsql  = safe(spend, sql);
   const cac    = safe(spend, sales);
   const roas   = safe(revenue, spend);
-  const pMql   = pct(mql, leads);
+  const pMql   = pct(mql, firstCount);
   const pSql   = pct(sql, mql);
   const pVenda = pct(sales, sql);
 
   const steps = [
-    { label: 'Leads',  count: leads, cost: cpl,   conv: null,   pctLabel: null,               color: 'text-gray-800',   bg: 'bg-gray-100',   bar: 'bg-gray-400' },
+    { label: firstLabel, count: firstCount, cost: cpl, conv: null, pctLabel: null, color: 'text-gray-800', bg: 'bg-gray-100', bar: 'bg-gray-400' },
     { label: 'MQL',    count: mql,   cost: cpmql,  conv: pMql,   pctLabel: 'Lead → MQL',       color: 'text-blue-700',   bg: 'bg-blue-50',    bar: 'bg-blue-400' },
     { label: 'SQL',    count: sql,   cost: cpsql,  conv: pSql,   pctLabel: 'MQL → SQL',        color: 'text-purple-700', bg: 'bg-purple-50',  bar: 'bg-purple-400' },
     { label: 'Vendas', count: sales, cost: cac,    conv: pVenda, pctLabel: 'SQL → Venda',      color: 'text-success-700',bg: 'bg-success-100',bar: 'bg-success-500' },
@@ -462,9 +469,11 @@ function CampaignRow({ campaign, metrics, funnelMap, campaignType }: {
         <FunnelStrip
           spend={metrics.spend}
           leads={metrics.leads}
+          messages={metrics.messages}
           mql={funnel?.mql ?? 0}
           sql={funnel?.sql ?? 0}
           sales={funnel?.sales ?? 0}
+          isWpp={campaignType === 'WPP'}
         />
       </div>
 
@@ -918,6 +927,7 @@ export default function CampaignsPage() {
         <FunnelGeral
           spend={summary.metrics.spend}
           leads={summary.metrics.leads}
+          messages={summary.metrics.messages}
           mql={funnelTotals.mql}
           sql={funnelTotals.sql}
           sales={funnelTotals.sales}
