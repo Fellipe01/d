@@ -48,6 +48,11 @@ interface CreativeRow {
 function safe(a: number, b: number) { return b > 0 ? a / b : 0; }
 function pct(a: number, b: number) { return b > 0 ? (a / b) * 100 : 0; }
 
+// Remove strategy prefixes like [BIDCAP], [CBO], [ABO] from display names
+function displayName(name: string): string {
+  return name.replace(/^\[[^\]]+\]\s*-?\s*/i, '').trim();
+}
+
 type CampaignType = 'WPP' | 'VP' | 'LEAD' | 'FORM' | 'OTHER';
 
 function getCampaignType(name: string): CampaignType {
@@ -444,7 +449,7 @@ function CampaignRow({ campaign, metrics, funnelMap, campaignType }: {
       <div className="sm:hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 text-sm leading-snug">{campaign.name}</h3>
+            <h3 className="font-semibold text-gray-900 text-sm leading-snug">{displayName(campaign.name)}</h3>
             {campaign.objective && (
               <p className="text-xs text-gray-400 mt-0.5">{campaign.objective}</p>
             )}
@@ -480,7 +485,7 @@ function CampaignRow({ campaign, metrics, funnelMap, campaignType }: {
       {/* Desktop table row */}
       <tr className="hidden sm:table-row group hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
         <td className="px-4 py-3.5 max-w-xs">
-          <div className="font-medium text-gray-800 text-sm leading-snug truncate">{campaign.name}</div>
+          <div className="font-medium text-gray-800 text-sm leading-snug truncate">{displayName(campaign.name)}</div>
           {campaign.objective && (
             <div className="text-xs text-gray-400 mt-0.5 truncate">{campaign.objective}</div>
           )}
