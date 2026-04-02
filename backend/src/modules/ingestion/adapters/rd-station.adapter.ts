@@ -32,19 +32,38 @@ async function rdGet(path: string, token: string, params: Record<string, string>
 }
 
 async function rdGetAllDeals(token: string, since: string, until: string, pipelineId: string | null = null): Promise<RdDeal[]> {
-  // Fetch open/won deals, then lost deals separately — RD Station API does not
-  // return lost (win=false) deals in the default listing without explicit filter.
+  // RD Station has a hard limit of 10 000 results per query (Elasticsearch).
+  // To stay under it, split the date range into 7-day chunks and fetch each
+  // chunk separately. Even large accounts rarely exceed 10k deals in one week.
   const pipelineFilter: Record<string, string> = pipelineId ? { deal_pipeline_id: pipelineId } : {};
-  const [open, lost] = await Promise.all([
-    rdGetDealsPage(token, since, until, { ...pipelineFilter }),
-    rdGetDealsPage(token, since, until, { ...pipelineFilter, win: 'false' }),
-  ]);
 
-  // Merge, deduplicate by id
+  // Build 7-day date windows covering [since, until]
+  const windows: Array<{ from: string; to: string }> = [];
+  let cursor = new Date(since + 'T00:00:00Z');
+  const end = new Date(until + 'T23:59:59Z');
+  while (cursor <= end) {
+    const windowEnd = new Date(cursor);
+    windowEnd.setUTCDate(windowEnd.getUTCDate() + 6);
+    if (windowEnd > end) windowEnd.setTime(end.getTime());
+    windows.push({ from: toISODate(cursor), to: toISODate(windowEnd) });
+    cursor = new Date(windowEnd);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
   const byId = new Map<string, RdDeal>();
-  for (const d of [...open, ...lost]) byId.set(d.id, d);
+  let totalOpen = 0, totalLost = 0;
 
-  console.log(`[RD] Raw fetch: ${open.length} open/won + ${lost.length} lost = ${byId.size} unique deals${pipelineId ? ` (pipeline: ${pipelineId})` : ''}`);
+  for (const w of windows) {
+    const [open, lost] = await Promise.all([
+      rdGetDealsPage(token, w.from, w.to, { ...pipelineFilter }),
+      rdGetDealsPage(token, w.from, w.to, { ...pipelineFilter, win: 'false' }),
+    ]);
+    totalOpen += open.length;
+    totalLost += lost.length;
+    for (const d of [...open, ...lost]) byId.set(d.id, d);
+  }
+
+  console.log(`[RD] Raw fetch: ${totalOpen} open/won + ${totalLost} lost = ${byId.size} unique deals in ${windows.length} chunks${pipelineId ? ` (pipeline: ${pipelineId})` : ''}`);
   return Array.from(byId.values());
 }
 
