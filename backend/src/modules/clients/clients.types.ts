@@ -7,6 +7,7 @@ export interface Client {
   rd_fonte_field: string | null;
   rd_campanha_field: string | null;
   rd_criativo_field: string | null;
+  rd_pipeline_id: string | null;
   rd_mql_stage: string | null;
   rd_sql_stage: string | null;
   rd_venda_stage: string | null;
@@ -38,6 +39,7 @@ export interface CreateClientDto {
   rd_fonte_field?: string;
   rd_campanha_field?: string;
   rd_criativo_field?: string;
+  rd_pipeline_id?: string;
   rd_mql_stage?: string;
   rd_sql_stage?: string;
   rd_venda_stage?: string;

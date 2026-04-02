@@ -236,3 +236,16 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_client     ON campaigns (client_id, sta
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 -- (add policies here as needed)
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migrations (safe to re-run — uses ADD COLUMN IF NOT EXISTS)
+-- ─────────────────────────────────────────────────────────────────────────────
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_fonte_field    TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_campanha_field TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_criativo_field TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_pipeline_id    TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_mql_stage      TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_sql_stage      TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_venda_stage    TEXT;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_meta_sync_at TIMESTAMPTZ;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_rd_sync_at   TIMESTAMPTZ;

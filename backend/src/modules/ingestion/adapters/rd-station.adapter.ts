@@ -10,28 +10,41 @@ async function rdGet(path: string, token: string, params: Record<string, string>
   url.searchParams.set('token', token);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  const res = await fetch(url.toString());
-  const json = await res.json() as Record<string, unknown>;
+  // Build a safe URL for logging (without token)
+  const safeParams = Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&');
+  const safeUrl = `${RD_BASE}${path}${safeParams ? '?' + safeParams : ''}`;
 
-  if (!res.ok) {
-    throw new Error(`RD Station API error ${res.status}: ${JSON.stringify(json)}`);
+  let json: Record<string, unknown>;
+  try {
+    const res = await fetch(url.toString());
+    json = await res.json() as Record<string, unknown>;
+
+    if (!res.ok) {
+      console.error(`[RD] API error ${res.status} at ${safeUrl} — response: ${JSON.stringify(json)}`);
+      throw new Error(`RD Station API error ${res.status} (${path}): ${JSON.stringify(json)}`);
+    }
+    return json;
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('RD Station API error')) throw e;
+    console.error(`[RD] Network/parse error at ${safeUrl}: ${String(e)}`);
+    throw e;
   }
-  return json;
 }
 
-async function rdGetAllDeals(token: string, since: string, until: string): Promise<RdDeal[]> {
+async function rdGetAllDeals(token: string, since: string, until: string, pipelineId: string | null = null): Promise<RdDeal[]> {
   // Fetch open/won deals, then lost deals separately — RD Station API does not
   // return lost (win=false) deals in the default listing without explicit filter.
+  const pipelineFilter: Record<string, string> = pipelineId ? { deal_pipeline_id: pipelineId } : {};
   const [open, lost] = await Promise.all([
-    rdGetDealsPage(token, since, until, {}),
-    rdGetDealsPage(token, since, until, { win: 'false' }),
+    rdGetDealsPage(token, since, until, { ...pipelineFilter }),
+    rdGetDealsPage(token, since, until, { ...pipelineFilter, win: 'false' }),
   ]);
 
   // Merge, deduplicate by id
   const byId = new Map<string, RdDeal>();
   for (const d of [...open, ...lost]) byId.set(d.id, d);
 
-  console.log(`[RD] Raw fetch: ${open.length} open/won + ${lost.length} lost = ${byId.size} unique deals`);
+  console.log(`[RD] Raw fetch: ${open.length} open/won + ${lost.length} lost = ${byId.size} unique deals${pipelineId ? ` (pipeline: ${pipelineId})` : ''}`);
   return Array.from(byId.values());
 }
 
@@ -86,6 +99,7 @@ interface ClientConfig {
   rd_fonte_field: string | null;
   rd_campanha_field: string | null;
   rd_criativo_field: string | null;
+  rd_pipeline_id: string | null;
   rd_mql_stage: string | null;
   rd_sql_stage: string | null;
   rd_venda_stage: string | null;
@@ -112,7 +126,7 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   // Fetch client config
   const { data: client } = await supabase
     .from('clients')
-    .select('id, rdstation_token, rd_fonte_field, rd_campanha_field, rd_criativo_field, rd_mql_stage, rd_sql_stage, rd_venda_stage')
+    .select('id, rdstation_token, rd_fonte_field, rd_campanha_field, rd_criativo_field, rd_pipeline_id, rd_mql_stage, rd_sql_stage, rd_venda_stage')
     .eq('id', clientId)
     .maybeSingle();
 
@@ -121,7 +135,7 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   }
 
   const cfg = client as ClientConfig;
-  console.log(`[RD] Syncing client ${clientId} — stages: MQL="${cfg.rd_mql_stage}" SQL="${cfg.rd_sql_stage}" Venda="${cfg.rd_venda_stage}"`);
+  console.log(`[RD] Syncing client ${clientId} — pipeline="${cfg.rd_pipeline_id ?? 'all'}" stages: MQL="${cfg.rd_mql_stage}" SQL="${cfg.rd_sql_stage}" Venda="${cfg.rd_venda_stage}"`);
 
   // Date range: last 90 days
   const today = new Date();
@@ -130,7 +144,7 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
 
   // ── Fetch deal stages to determine Kanban order ───────────────────────────
   // A deal at position N has passed through ALL stages 1..N
-  const stageOrderMap = await fetchStageOrderMap(cfg.rdstation_token);
+  const stageOrderMap = await fetchStageOrderMap(cfg.rdstation_token, cfg.rd_pipeline_id);
   const mqlPos  = findStagePosition(stageOrderMap, cfg.rd_mql_stage);
   const sqlPos  = findStagePosition(stageOrderMap, cfg.rd_sql_stage);
   const vendaPos = findStagePosition(stageOrderMap, cfg.rd_venda_stage);
@@ -148,8 +162,8 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
   };
   console.log(`[RD] Prefix fallback — MQL:"${mqlPrefix}" SQL:"${sqlPrefix}" Venda:"${vendaPrefix}"`);
 
-  // Fetch all deals created in the last 90 days
-  const allDeals = await rdGetAllDeals(cfg.rdstation_token, since, until);
+  // Fetch all deals created in the last 90 days (optionally filtered by pipeline)
+  const allDeals = await rdGetAllDeals(cfg.rdstation_token, since, until, cfg.rd_pipeline_id);
 
   // Filter deals where the "Fonte" field value matches the configured rd_fonte_field value
   // The field is always named "Fonte" in RD Station; rd_fonte_field stores the expected VALUE (e.g. "Meta/Ads")
@@ -325,16 +339,17 @@ async function _syncRdStationReal(clientId: number): Promise<void> {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Returns a map of stage name (lowercase) → position (0-based order)
-async function fetchStageOrderMap(token: string): Promise<Map<string, number>> {
+async function fetchStageOrderMap(token: string, pipelineId: string | null = null): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   try {
-    // Try /deal_stages first
-    const data = await rdGet('/deal_stages', token) as { deal_stages?: RdDealStage[] } | RdDealStage[];
+    const params: Record<string, string> = pipelineId ? { deal_pipeline_id: pipelineId } : {};
+    const data = await rdGet('/deal_stages', token, params) as { deal_stages?: RdDealStage[] } | RdDealStage[];
     const stages: RdDealStage[] = Array.isArray(data) ? data : (data.deal_stages ?? []);
 
     // Sort by step_order or position
     stages.sort((a, b) => (a.step_order ?? a.position ?? 0) - (b.step_order ?? b.position ?? 0));
     stages.forEach((s, idx) => map.set(s.name.toLowerCase(), idx));
+    console.log(`[RD] Loaded ${stages.length} deal stages${pipelineId ? ` for pipeline ${pipelineId}` : ''}`);
   } catch {
     // If endpoint not available, map will be empty and we fall back to name matching
     console.warn('[RD] Could not fetch deal stages order, falling back to name matching');

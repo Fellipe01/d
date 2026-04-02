@@ -261,6 +261,7 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
     rd_fonte_field: client.rd_fonte_field ?? '',
     rd_campanha_field: client.rd_campanha_field ?? '',
     rd_criativo_field: client.rd_criativo_field ?? '',
+    rd_pipeline_id: client.rd_pipeline_id ?? '',
     rd_mql_stage: client.rd_mql_stage ?? '',
     rd_sql_stage: client.rd_sql_stage ?? '',
     rd_venda_stage: client.rd_venda_stage ?? '',
@@ -396,6 +397,16 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
               )}
             </div>
             <div>
+              <label className={labelCls}>ID do Pipeline (Funil)</label>
+              <input
+                value={form.rd_pipeline_id}
+                onChange={e => setForm(f => ({ ...f, rd_pipeline_id: e.target.value }))}
+                className={inputCls}
+                placeholder="ex: 694e75b478da140017c63c10"
+              />
+              <p className="text-xs text-gray-400 mt-0.5">Opcional — filtra os deals de um pipeline específico</p>
+            </div>
+            <div>
               <label className={labelCls}>Valor do Campo "Fonte"</label>
               <input
                 value={form.rd_fonte_field}
@@ -479,6 +490,7 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
               rd_fonte_field: form.rd_fonte_field || undefined,
               rd_campanha_field: form.rd_campanha_field || undefined,
               rd_criativo_field: form.rd_criativo_field || undefined,
+              rd_pipeline_id: form.rd_pipeline_id || undefined,
               rd_mql_stage: form.rd_mql_stage || undefined,
               rd_sql_stage: form.rd_sql_stage || undefined,
               rd_venda_stage: form.rd_venda_stage || undefined,
