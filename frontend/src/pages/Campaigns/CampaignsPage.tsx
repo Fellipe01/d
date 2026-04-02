@@ -537,7 +537,9 @@ function CreativeRow({ creative, funnelMap, dateRange }: {
     queryFn: () => metricsApi.getCreativeMetrics(creative.id, dateRange.start, dateRange.end),
   });
 
-  const isWpp = getCampaignType(creative.campaign_name ?? '') === 'WPP';
+  // Detect WPP by campaign name OR by having more messages than leads
+  const isWpp = getCampaignType(creative.campaign_name ?? '') === 'WPP'
+    || (creative.messages || 0) > (creative.leads || 0);
   const funnel = funnelMap.get(creative.id);
   const spend = metrics?.spend ?? creative.spend;
   const leads = metrics?.leads ?? creative.leads;
@@ -843,23 +845,30 @@ export default function CampaignsPage() {
 
   const creativesTyped = topCreatives as CreativeRow[];
 
-  // Group creatives by campaign_id and sum their leads
-  const campLeadTotals = new Map<number, number>();
+  // Sum leads AND messages per campaign to choose the best share factor
+  const campLeadTotals    = new Map<number, number>();
+  const campMessageTotals = new Map<number, number>();
   for (const cr of creativesTyped) {
     if (cr.campaign_id != null) {
-      campLeadTotals.set(cr.campaign_id, (campLeadTotals.get(cr.campaign_id) ?? 0) + (cr.leads || 0));
+      campLeadTotals.set(cr.campaign_id,    (campLeadTotals.get(cr.campaign_id)    ?? 0) + (cr.leads    || 0));
+      campMessageTotals.set(cr.campaign_id, (campMessageTotals.get(cr.campaign_id) ?? 0) + (cr.messages || 0));
     }
   }
 
-  // Build final creative funnel map: direct attribution if available, else proportional
+  // Build final creative funnel map: direct attribution if available, else proportional.
+  // For WPP campaigns (more messages than leads), distribute by message share.
   const funnelCreativeMap = new Map<number, FunnelRow>();
   for (const cr of creativesTyped) {
     if (funnelCreativeMapDirect.has(cr.id)) {
       funnelCreativeMap.set(cr.id, funnelCreativeMapDirect.get(cr.id)!);
     } else if (cr.campaign_id != null) {
-      const campFunnel = funnelCampMap.get(cr.campaign_id);
-      const totalLeads = campLeadTotals.get(cr.campaign_id) ?? 0;
-      const share = totalLeads > 0 ? (cr.leads || 0) / totalLeads : 0;
+      const campFunnel  = funnelCampMap.get(cr.campaign_id);
+      const totalLeads  = campLeadTotals.get(cr.campaign_id)    ?? 0;
+      const totalMsgs   = campMessageTotals.get(cr.campaign_id) ?? 0;
+      const useMessages = totalMsgs > totalLeads;
+      const total       = useMessages ? totalMsgs : totalLeads;
+      const crValue     = useMessages ? (cr.messages || 0) : (cr.leads || 0);
+      const share       = total > 0 ? crValue / total : 0;
       if (campFunnel && share > 0) {
         funnelCreativeMap.set(cr.id, {
           creative_id: cr.id,
