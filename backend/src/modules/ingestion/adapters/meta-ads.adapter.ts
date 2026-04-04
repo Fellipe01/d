@@ -159,7 +159,23 @@ async function _syncMetaAdsReal(clientId: number): Promise<void> {
   const since = toISODate(subDays(today, 89));
   const until = toISODate(today);
 
-  // ── 1. Fetch only ACTIVE campaigns — drastically reduces API calls for large accounts
+  // ── 1. Mark all existing campaigns/creatives as paused before sync.
+  // After the loop, anything not re-activated by Meta is correctly marked paused.
+  const { data: existingCampaigns } = await supabase
+    .from('campaigns')
+    .select('id')
+    .eq('client_id', clientId);
+  if (existingCampaigns?.length) {
+    const campIds = existingCampaigns.map((c: { id: number }) => c.id);
+    await supabase.from('campaigns').update({ status: 'paused' }).in('id', campIds);
+    const { data: existingAdSets } = await supabase.from('ad_sets').select('id').in('campaign_id', campIds);
+    if (existingAdSets?.length) {
+      const adSetIds = existingAdSets.map((a: { id: number }) => a.id);
+      await supabase.from('creatives').update({ status: 'paused' }).in('ad_set_id', adSetIds);
+    }
+  }
+
+  // ── 2. Fetch only ACTIVE campaigns — drastically reduces API calls for large accounts
   const metaCampaigns = await graphGetAll(`/${adAccountId}/campaigns`, {
     fields: 'id,name,status,objective',
     effective_status: '["ACTIVE"]',
