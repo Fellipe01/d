@@ -101,12 +101,16 @@ type CampaignType = (typeof CAMPAIGN_TYPES)[number] | 'Outros';
 // Campaign type helpers
 // ---------------------------------------------------------------------------
 
-function extractCampaignType(campaignName: string | null | undefined): CampaignType {
-  if (!campaignName) return 'Outros';
+function extractCampaignType(campaignName: string | null | undefined, messages = 0, leads = 0): CampaignType {
+  if (!campaignName) return messages > leads ? 'WPP' : 'Outros';
   const upper = campaignName.toUpperCase();
   for (const t of CAMPAIGN_TYPES) {
     if (upper.includes(`[${t}]`)) return t;
   }
+  // Detect WPP as standalone word (ex: "[BIDCAP] - WPP - BPC")
+  if (/\bWPP\b/.test(upper)) return 'WPP';
+  // Fallback: if creative has more messages than leads, it's a WPP campaign
+  if (messages > leads) return 'WPP';
   return 'Outros';
 }
 
@@ -500,7 +504,7 @@ export default function CreativesPage() {
     groups.set(t, []);
   }
   for (const c of visibleCreatives) {
-    const t = extractCampaignType(c.campaign_name);
+    const t = extractCampaignType(c.campaign_name, c.messages, c.leads);
     groups.get(t)!.push(c);
   }
   const visibleGroups = ([...CAMPAIGN_TYPES, 'Outros'] as CampaignType[]).filter(
