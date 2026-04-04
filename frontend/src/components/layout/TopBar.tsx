@@ -91,6 +91,9 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
 
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customStart, setCustomStart] = useState(dateRange.start);
+  const [customEnd, setCustomEnd] = useState(dateRange.end);
 
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
@@ -165,7 +168,7 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
 
             {/* Date range pill */}
             {showDateRange && (
-              <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-1">
+              <div className="relative flex items-center gap-0.5 bg-gray-100 rounded-lg p-1">
                 <span className="text-gray-400 pl-1.5 pr-0.5">
                   <CalendarIcon size={13} />
                 </span>
@@ -174,7 +177,7 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
                   return (
                     <button
                       key={r.days}
-                      onClick={() => setRange(r.days)}
+                      onClick={() => { setRange(r.days); setCustomOpen(false); }}
                       className={`
                         px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150
                         ${isActive
@@ -187,6 +190,68 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
                     </button>
                   );
                 })}
+                {/* Custom range button */}
+                <button
+                  onClick={() => {
+                    setCustomStart(dateRange.start);
+                    setCustomEnd(dateRange.end);
+                    setCustomOpen(v => !v);
+                  }}
+                  className={`
+                    px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150
+                    ${activeRangeDays() === null
+                      ? 'bg-white text-brand-700 shadow-sm ring-1 ring-gray-200'
+                      : 'text-gray-500 hover:text-gray-800 hover:bg-white/60'
+                    }
+                  `}
+                >
+                  Personalizado
+                </button>
+
+                {/* Custom range popover */}
+                {customOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setCustomOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 z-30 bg-white rounded-xl shadow-xl border border-gray-200/80 p-4 w-64">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Período personalizado</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Início</label>
+                          <input
+                            type="date"
+                            value={customStart}
+                            max={customEnd}
+                            onChange={e => setCustomStart(e.target.value)}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Fim</label>
+                          <input
+                            type="date"
+                            value={customEnd}
+                            min={customStart}
+                            max={format(new Date(), 'yyyy-MM-dd')}
+                            onChange={e => setCustomEnd(e.target.value)}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (customStart && customEnd) {
+                            setDateRange({ start: customStart, end: customEnd });
+                            setCustomOpen(false);
+                          }
+                        }}
+                        disabled={!customStart || !customEnd}
+                        className="mt-3 w-full py-1.5 text-xs font-semibold bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-40 transition-colors"
+                      >
+                        Aplicar
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -362,7 +427,7 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                         Período
                       </label>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 mb-2">
                         {RANGES.map(r => {
                           const isActive = activeRangeDays() === r.days;
                           return (
@@ -384,6 +449,44 @@ export default function TopBar({ onOpenMobileDrawer }: TopBarProps) {
                             </button>
                           );
                         })}
+                      </div>
+                      {/* Custom range for mobile */}
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1">Início</label>
+                            <input
+                              type="date"
+                              value={customStart}
+                              max={customEnd}
+                              onChange={e => setCustomStart(e.target.value)}
+                              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1">Fim</label>
+                            <input
+                              type="date"
+                              value={customEnd}
+                              min={customStart}
+                              max={format(new Date(), 'yyyy-MM-dd')}
+                              onChange={e => setCustomEnd(e.target.value)}
+                              className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (customStart && customEnd) {
+                              setDateRange({ start: customStart, end: customEnd });
+                              setMobileControlsOpen(false);
+                            }
+                          }}
+                          disabled={!customStart || !customEnd}
+                          className="w-full py-2 text-sm font-semibold bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-40 transition-colors"
+                        >
+                          Aplicar período
+                        </button>
                       </div>
                     </div>
                   )}
