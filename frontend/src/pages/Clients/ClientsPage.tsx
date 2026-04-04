@@ -765,6 +765,26 @@ export default function ClientsPage() {
 
   const [syncingMeta, setSyncingMeta] = useState<number | null>(null);
   const [syncingRd, setSyncingRd] = useState<number | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncAllProgress, setSyncAllProgress] = useState<{ done: number; total: number } | null>(null);
+
+  async function handleSyncAll() {
+    const activeClients = (clients as Client[]).filter(c => c.status === 'active' && c.ad_account);
+    if (!activeClients.length) return;
+    setSyncingAll(true);
+    setSyncAllProgress({ done: 0, total: activeClients.length });
+    for (let i = 0; i < activeClients.length; i++) {
+      const c = activeClients[i];
+      try { await clientsApi.syncMetaAds(c.id); } catch { /* continua */ }
+      if (c.rdstation_token) {
+        try { await clientsApi.syncRdStation(c.id); } catch { /* continua */ }
+      }
+      setSyncAllProgress({ done: i + 1, total: activeClients.length });
+    }
+    setSyncingAll(false);
+    setSyncAllProgress(null);
+    qc.invalidateQueries({ queryKey: ['clients'] });
+  }
 
   async function handleSyncMeta(client: Client) {
     setSyncingMeta(client.id);
@@ -818,13 +838,25 @@ export default function ClientsPage() {
             {pausedCount > 0 && <> · <span className="text-warning-700 font-medium">{pausedCount} pausados</span></>}
           </p>
         </div>
-        <button
-          onClick={() => setShowNew(true)}
-          className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-brand-600 text-white rounded-xl hover:bg-brand-700 shadow-sm transition-colors"
-        >
-          <span className="text-base leading-none">+</span>
-          Novo Cliente
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={handleSyncAll}
+            disabled={syncingAll}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            <span className={syncingAll ? 'animate-spin' : ''}>↻</span>
+            {syncingAll && syncAllProgress
+              ? `Sync ${syncAllProgress.done}/${syncAllProgress.total}`
+              : 'Sync Geral'}
+          </button>
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-brand-600 text-white rounded-xl hover:bg-brand-700 shadow-sm transition-colors"
+          >
+            <span className="text-base leading-none">+</span>
+            Novo Cliente
+          </button>
+        </div>
       </div>
 
       {/* Loading */}
