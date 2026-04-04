@@ -60,6 +60,8 @@ async function runReports(type: 'weekly_mon' | 'weekly_wed' | 'weekly_fri'): Pro
   }
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function runDailySync(): Promise<void> {
   const clientIds = await getActiveClientIds();
   console.log(`[Scheduler] Starting daily sync for ${clientIds.length} clients...`);
@@ -72,6 +74,9 @@ async function runDailySync(): Promise<void> {
     } catch (err) {
       console.error(`[Scheduler] Meta sync failed for client ${clientId}:`, err);
     }
+
+    // Aguarda 15s entre clientes para não estourar o rate limit da Meta API
+    await sleep(15000);
 
     try {
       await syncRdStationReal(clientId);
