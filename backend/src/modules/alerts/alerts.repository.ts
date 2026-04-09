@@ -144,36 +144,4 @@ export async function checkAndCreateAlerts(clientId: number): Promise<void> {
       });
     }
   }
-
-  // Check saldo PIX
-  if (client.saldo_pix_enabled && client.saldo_pix_amount !== null && client.saldo_pix_threshold !== null) {
-    const saldo = client.saldo_pix_amount;
-    const threshold = client.saldo_pix_threshold;
-
-    if (saldo <= threshold) {
-      const { data: existingSaldo } = await supabase
-        .from('alerts')
-        .select('id')
-        .eq('client_id', clientId)
-        .eq('alert_type', 'saldo_pix_low')
-        .is('resolved_at', null)
-        .gte('created_at', oneDayAgo)
-        .maybeSingle();
-
-      if (!existingSaldo) {
-        const isCritical = saldo <= threshold * 0.5;
-        await createAlert({
-          client_id: clientId,
-          alert_type: 'saldo_pix_low',
-          severity: isCritical ? 'critical' : 'warning',
-          message: `Saldo PIX baixo: R$ ${saldo.toFixed(2)} disponível. Limite de alerta: R$ ${threshold.toFixed(2)}. Recarregue para manter as campanhas ativas.`,
-          entity_type: 'client',
-          entity_id: clientId,
-          kpi_name: 'saldo_pix',
-          actual_value: saldo,
-          threshold_value: threshold,
-        });
-      }
-    }
-  }
 }
