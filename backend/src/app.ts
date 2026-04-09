@@ -10,18 +10,14 @@ import alertsRouter from './modules/alerts/alerts.routes';
 import activitiesRouter from './modules/activities/activities.routes';
 import funnelRouter from './modules/funnel/funnel.routes';
 import reportsRouter from './modules/reports/reports.routes';
-import tasksRouter from './modules/tasks/tasks.routes';
-import adminRouter from './modules/admin/admin.routes';
 
 const app = express();
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  process.env.ALLOWED_ORIGIN,
-].filter(Boolean) as string[];
-
-app.use(cors({ origin: allowedOrigins }));
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+const extraOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [];
+app.use(cors({ origin: [...defaultOrigins, ...extraOrigins] }));
 app.use(express.json());
 
 // Health
@@ -37,7 +33,7 @@ app.param(['id', 'clientId', 'campaignId', 'creativeId', 'adSetId'], (req, res, 
 });
 
 // Routes
-app.use('/api/clients', clientsRouter);
+app.use('/api', clientsRouter);
 app.use('/api', campaignsRouter);
 app.use('/api', metricsRouter);
 app.use('/api', ingestionRouter);
@@ -46,8 +42,6 @@ app.use('/api', alertsRouter);
 app.use('/api', activitiesRouter);
 app.use('/api', funnelRouter);
 app.use('/api', reportsRouter);
-app.use('/api', tasksRouter);
-app.use('/api', adminRouter);
 
 app.use(errorHandler);
 

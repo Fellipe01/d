@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+// Em produção (Vercel), VITE_API_URL deve apontar para o backend Railway
+// Ex: https://dae-backend.up.railway.app/api
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
 });
 

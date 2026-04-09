@@ -8,18 +8,21 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Clients
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS clients (
-  id              BIGSERIAL PRIMARY KEY,
-  name            TEXT NOT NULL,
-  slug            TEXT NOT NULL UNIQUE,
-  ad_account      TEXT,
-  rdstation_token TEXT,
-  status          TEXT NOT NULL DEFAULT 'active'
-                    CHECK (status IN ('active', 'paused', 'churned')),
-  payment_method  TEXT,
-  objectives      TEXT DEFAULT '[]',          -- stored as JSON string
-  monthly_budget  NUMERIC,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                   BIGSERIAL PRIMARY KEY,
+  name                 TEXT NOT NULL,
+  slug                 TEXT NOT NULL UNIQUE,
+  ad_account           TEXT,
+  rdstation_token      TEXT,
+  status               TEXT NOT NULL DEFAULT 'active'
+                         CHECK (status IN ('active', 'paused', 'churned')),
+  payment_method       TEXT,
+  objectives           TEXT DEFAULT '[]',          -- stored as JSON string
+  monthly_budget       NUMERIC,
+  saldo_pix_enabled    BOOLEAN NOT NULL DEFAULT false,
+  saldo_pix_amount     NUMERIC,                    -- saldo atual disponível (R$)
+  saldo_pix_threshold  NUMERIC,                    -- alertar quando restar menos que X reais
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -81,8 +84,6 @@ CREATE TABLE IF NOT EXISTS creatives (
   headline      TEXT,
   body_text     TEXT,
   cta           TEXT,
-  status        TEXT NOT NULL DEFAULT 'active'
-                  CHECK (status IN ('active', 'paused', 'archived')),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -110,7 +111,6 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
   cost_per_follower NUMERIC DEFAULT 0,
   video_views       BIGINT DEFAULT 0,
   hook_rate         NUMERIC DEFAULT 0,
-  profile_visits    BIGINT DEFAULT 0,
   ingested_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (entity_type, entity_id, date)
 );
@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS alerts (
   client_id       BIGINT NOT NULL REFERENCES clients (id) ON DELETE CASCADE,
   alert_type      TEXT NOT NULL CHECK (alert_type IN (
     'kpi_breach', 'saturation', 'budget_pacing', 'funnel_drop',
-    'ctr_drop', 'frequency_high', 'cpl_spike'
+    'ctr_drop', 'frequency_high', 'cpl_spike', 'saldo_pix_low'
   )),
   severity        TEXT NOT NULL DEFAULT 'warning'
                     CHECK (severity IN ('critical', 'warning', 'info')),
@@ -231,21 +231,37 @@ CREATE INDEX IF NOT EXISTS idx_activities_client    ON activities (client_id, ex
 CREATE INDEX IF NOT EXISTS idx_campaigns_client     ON campaigns (client_id, status);
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Migrations (run if table already exists)
+-- ─────────────────────────────────────────────────────────────────────────────
+DO $$
+BEGIN
+  -- Adiciona colunas de saldo PIX se não existirem
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'clients' AND column_name = 'saldo_pix_enabled'
+  ) THEN
+    ALTER TABLE clients ADD COLUMN saldo_pix_enabled   BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE clients ADD COLUMN saldo_pix_amount    NUMERIC;
+    ALTER TABLE clients ADD COLUMN saldo_pix_threshold NUMERIC;
+  END IF;
+
+  -- Atualiza o CHECK constraint de alert_type para incluir saldo_pix_low
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_name = 'alerts' AND constraint_name = 'alerts_alert_type_check'
+  ) THEN
+    ALTER TABLE alerts DROP CONSTRAINT alerts_alert_type_check;
+    ALTER TABLE alerts ADD CONSTRAINT alerts_alert_type_check
+      CHECK (alert_type IN (
+        'kpi_breach', 'saturation', 'budget_pacing', 'funnel_drop',
+        'ctr_drop', 'frequency_high', 'cpl_spike', 'saldo_pix_low'
+      ));
+  END IF;
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Row-Level Security (RLS) — disabled by default for service-role access
 -- Enable and configure if you need per-user isolation in the future.
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 -- (add policies here as needed)
-
--- ─────────────────────────────────────────────────────────────────────────────
--- Migrations (safe to re-run — uses ADD COLUMN IF NOT EXISTS)
--- ─────────────────────────────────────────────────────────────────────────────
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_fonte_field    TEXT;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_campanha_field TEXT;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_criativo_field TEXT;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_pipeline_id    TEXT;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_mql_stage      TEXT;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_sql_stage      TEXT;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS rd_venda_stage    TEXT;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_meta_sync_at TIMESTAMPTZ;
-ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_rd_sync_at   TIMESTAMPTZ;
