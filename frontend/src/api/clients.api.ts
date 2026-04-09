@@ -5,6 +5,14 @@ export interface Client {
   name: string;
   slug: string;
   ad_account: string | null;
+  rdstation_token: string | null;
+  rd_fonte_field: string | null;
+  rd_campanha_field: string | null;
+  rd_criativo_field: string | null;
+  rd_pipeline_id: string | null;
+  rd_mql_stage: string | null;
+  rd_sql_stage: string | null;
+  rd_venda_stage: string | null;
   status: 'active' | 'paused' | 'churned';
   payment_method: string | null;
   objectives: string[];
@@ -12,6 +20,8 @@ export interface Client {
   saldo_pix_enabled: boolean;
   saldo_pix_amount: number | null;
   saldo_pix_threshold: number | null;
+  last_meta_sync_at: string | null;
+  last_rd_sync_at: string | null;
   created_at: string;
   kpis?: ClientKpi[];
 }
@@ -38,4 +48,6 @@ export const clientsApi = {
     api.put<ClientKpi[]>(`/clients/${id}/kpis`, { kpis }).then(r => r.data),
   seedMock: (id: number) => api.post(`/ingestion/${id}/meta-ads/mock`).then(r => r.data),
   checkAlerts: (id: number) => api.post(`/clients/${id}/alerts/check`).then(r => r.data),
+  syncMetaAds: (id: number) => api.post(`/clients/${id}/sync/meta`).then(r => r.data),
+  syncRdStation: (id: number) => api.post(`/clients/${id}/sync/rd`).then(r => r.data),
 };
