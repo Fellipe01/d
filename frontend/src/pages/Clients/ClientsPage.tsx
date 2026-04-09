@@ -269,6 +269,9 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
     monthly_budget: client.monthly_budget?.toString() ?? '',
     status: client.status,
     objectives: client.objectives ?? [] as string[],
+    saldo_pix_enabled: client.saldo_pix_enabled ?? false,
+    saldo_pix_amount: client.saldo_pix_amount?.toString() ?? '',
+    saldo_pix_threshold: client.saldo_pix_threshold?.toString() ?? '',
   });
 
   const { mutate, isPending } = useMutation({
@@ -473,6 +476,47 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
               </div>
             </div>
           </Section>
+
+          {/* Saldo PIX */}
+          <Section title="Saldo PIX">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.saldo_pix_enabled}
+                onChange={e => setForm(f => ({ ...f, saldo_pix_enabled: e.target.checked }))}
+                className="w-4 h-4 accent-brand-600"
+              />
+              <span className="text-sm font-medium text-gray-700">Cliente paga via Saldo PIX</span>
+            </label>
+            {form.saldo_pix_enabled && (
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div>
+                  <label className={labelCls}>Saldo disponível (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.saldo_pix_amount}
+                    onChange={e => setForm(f => ({ ...f, saldo_pix_amount: e.target.value }))}
+                    className={inputCls}
+                    placeholder="ex: 1500.00"
+                  />
+                  <p className="text-xs text-gray-400 mt-0.5">Saldo atual na conta</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Alertar abaixo de (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.saldo_pix_threshold}
+                    onChange={e => setForm(f => ({ ...f, saldo_pix_threshold: e.target.value }))}
+                    className={inputCls}
+                    placeholder="ex: 300.00"
+                  />
+                  <p className="text-xs text-gray-400 mt-0.5">Gera alerta automático</p>
+                </div>
+              </div>
+            )}
+          </Section>
         </div>
 
         <div className="flex gap-3 px-6 py-4 border-t border-gray-100 sticky bottom-0 bg-white">
@@ -494,6 +538,8 @@ function EditClientModal({ client, onClose }: { client: Client; onClose: () => v
               rd_mql_stage: form.rd_mql_stage || undefined,
               rd_sql_stage: form.rd_sql_stage || undefined,
               rd_venda_stage: form.rd_venda_stage || undefined,
+              saldo_pix_amount: form.saldo_pix_enabled ? (Number(form.saldo_pix_amount) || 0) : undefined,
+              saldo_pix_threshold: form.saldo_pix_enabled ? (Number(form.saldo_pix_threshold) || 0) : undefined,
             })}
             disabled={!form.name || isPending}
             className="flex-1 px-4 py-2.5 text-sm font-semibold bg-brand-600 text-white rounded-xl hover:bg-brand-700 disabled:opacity-50 transition-colors"
@@ -696,6 +742,26 @@ function ClientCard({
                 className={objectiveColor[obj] ?? 'bg-gray-100 text-gray-600'}
               />
             ))}
+          </div>
+        )}
+
+        {/* Saldo PIX */}
+        {client.saldo_pix_enabled && (
+          <div className={`flex items-center gap-2 mb-3 text-sm ${
+            client.saldo_pix_amount !== null && client.saldo_pix_threshold !== null && client.saldo_pix_amount <= client.saldo_pix_threshold
+              ? 'text-orange-700 font-semibold'
+              : 'text-gray-500'
+          }`}>
+            <span>💳</span>
+            <span>
+              Saldo PIX:{' '}
+              <span className="font-bold">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(client.saldo_pix_amount ?? 0)}
+              </span>
+            </span>
+            {client.saldo_pix_amount !== null && client.saldo_pix_threshold !== null && client.saldo_pix_amount <= client.saldo_pix_threshold && (
+              <span className="ml-1 text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-semibold">Baixo</span>
+            )}
           </div>
         )}
 
