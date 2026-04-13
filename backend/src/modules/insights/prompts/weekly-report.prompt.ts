@@ -48,16 +48,22 @@ export interface WeeklyReportContext {
 }
 
 export function buildWeeklyReportPrompt(ctx: WeeklyReportContext): string {
-  const { client, kpis, metrics, kpiResults, topCreatives, crmSummary, alerts, reportType } = ctx;
+  const { client, metrics, kpiResults, topCreatives, crmSummary, alerts, reportType } = ctx;
   const periodLabel = `${formatBR(ctx.periodStart)} a ${formatBR(ctx.periodEnd)}`;
 
   const kpiTable = kpiResults.map(r =>
     `- **${r.kpi_name}**: Meta ${r.target.toFixed(2)} | Real ${r.actual.toFixed(2)} | Δ ${r.delta_pct.toFixed(1)}% | Status: ${r.status}`
   ).join('\n');
 
-  const creativesTable = topCreatives.slice(0, 5).map((c, i) =>
-    `${i + 1}. **${c.name}** (${c.type}) — Gasto: R$${c.spend.toFixed(2)} | CTR: ${c.ctr.toFixed(2)}% | CPL: R$${c.cpl.toFixed(2)} | Freq: ${c.frequency.toFixed(1)} | Leads: ${c.leads}`
-  ).join('\n');
+  const isWpp = client.objectives.includes('whatsapp');
+
+  const creativesTable = topCreatives.slice(0, 5).map((c, i) => {
+    const base = `${i + 1}. **${c.name}** (${c.type}) — Gasto: R$${c.spend.toFixed(2)} | Freq: ${c.frequency.toFixed(1)}`;
+    if (isWpp) {
+      return `${base} | Msgs: ${(c as unknown as { messages?: number }).messages ?? 0} | C/Msg: R$${(c as unknown as { cost_per_message?: number }).cost_per_message?.toFixed(2) ?? '0.00'}`;
+    }
+    return `${base} | CTR: ${c.ctr.toFixed(2)}% | CPL: R$${c.cpl.toFixed(2)} | Leads: ${c.leads}`;
+  }).join('\n');
 
   const funnelSection = crmSummary ? `
 ## Dados do Funil (CRM)
@@ -87,14 +93,13 @@ ${alerts.map(a => `- [${a.severity.toUpperCase()}] ${a.message}`).join('\n')}` :
 - **Impressões:** ${metrics.impressions.toLocaleString('pt-BR')}
 - **Alcance:** ${metrics.reach.toLocaleString('pt-BR')}
 - **Frequência:** ${metrics.frequency.toFixed(2)}
-- **Cliques:** ${metrics.clicks.toLocaleString('pt-BR')}
+- **CPM:** R$${metrics.cpm.toFixed(2)}
+${isWpp ? `- **Mensagens:** ${metrics.messages}
+- **Custo por Mensagem:** R$${metrics.cost_per_message.toFixed(2)}` : `- **Cliques:** ${metrics.clicks.toLocaleString('pt-BR')}
 - **CTR:** ${metrics.ctr.toFixed(2)}%
 - **CPC:** R$${metrics.cpc.toFixed(2)}
-- **CPM:** R$${metrics.cpm.toFixed(2)}
 - **Leads:** ${metrics.leads}
-- **CPL:** R$${metrics.cpl.toFixed(2)}
-- **Mensagens:** ${metrics.messages}
-- **Custo por Mensagem:** R$${metrics.cost_per_message.toFixed(2)}
+- **CPL:** R$${metrics.cpl.toFixed(2)}`}
 
 ## Desempenho vs KPIs
 ${kpiTable || 'Nenhum KPI configurado para este cliente.'}
