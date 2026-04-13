@@ -7,6 +7,7 @@ import { evaluateAllKpis } from '../../shared/utils/kpi-evaluator';
 import { buildWeeklyReportPrompt, WeeklyReportContext } from './prompts/weekly-report.prompt';
 import { SYSTEM_PROMPT } from './prompts/system-prompt';
 import { NotFoundError } from '../../shared/errors';
+import { generateWeeklyCampaignReport } from '../reports/weekly-campaign-report';
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
@@ -153,6 +154,27 @@ export async function generateInsight(
 ): Promise<Insight> {
   const client = await findClientById(clientId);
   if (!client) throw new NotFoundError('Client', clientId);
+
+  // Segunda-feira: card por campanha, sem IA
+  if (reportType === 'weekly_mon') {
+    const content = await generateWeeklyCampaignReport(clientId, periodStart, periodEnd);
+    const { data, error } = await supabase
+      .from('insights')
+      .insert({
+        client_id: clientId,
+        period_start: periodStart,
+        period_end: periodEnd,
+        content,
+        summary: content.split('\n')[0],
+        impact_level: 'low',
+        category: 'performance',
+        triggered_by: triggeredBy,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as Insight;
+  }
 
   const [kpis, metrics, topCreatives, crmSummary, alerts] = await Promise.all([
     findKpisByClientId(clientId),

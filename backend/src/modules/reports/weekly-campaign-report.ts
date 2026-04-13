@@ -4,26 +4,44 @@ import { supabase } from '../../config/supabase';
 
 type CampType = 'leads' | 'whatsapp' | 'traffic' | 'other';
 
-function detectType(objective: string | null): CampType {
+type CampAggForDetect = { messages: number; leads: number; followers: number; clicks: number };
+
+function detectType(
+  campName: string,
+  objective: string | null,
+  metrics: CampAggForDetect,
+  clientObjs: string[],
+): CampType {
+  // 1. Tag explícita no nome: [WPP], [FORMS], [VP]
+  const nameTag = (campName.match(/\[([^\]]+)\]/) ?? [])[1]?.toUpperCase() ?? '';
+  if (nameTag === 'WPP' || nameTag === 'WHATSAPP') return 'whatsapp';
+  if (nameTag === 'FORMS' || nameTag === 'LEADS')  return 'leads';
+  if (nameTag === 'VP' || nameTag === 'TRAFFIC')   return 'traffic';
+
+  // 2. Objective do Meta (quando explícito)
   const o = (objective ?? '').toUpperCase();
-  if (o.includes('LEAD')) return 'leads';
+  if (o.includes('LEAD'))                                          return 'leads';
   if (o.includes('MESSAGE') || o.includes('WPP') || o.includes('WHATSAPP')) return 'whatsapp';
+
+  // 3. Métricas reais da campanha — mais confiável que o objective do Meta
+  if (metrics.messages  > 0) return 'whatsapp';
+  if (metrics.leads     > 0) return 'leads';
+  if (metrics.followers > 0) return 'traffic';
+
+  // 4. Objectives restantes do Meta (ENGAGEMENT, REACH, etc.) → VP
   if (o.includes('TRAFFIC') || o.includes('LINK_CLICK') || o.includes('REACH') ||
-      o.includes('AWARENESS') || o.includes('PAGE_LIKE') || o.includes('PROFILE')) return 'traffic';
+      o.includes('AWARENESS') || o.includes('PAGE_LIKE') || o.includes('ENGAGEMENT') ||
+      o.includes('PROFILE'))                                       return 'traffic';
+
+  // 5. Fallback: objectives do cliente configurados no admin
+  if (clientObjs.includes('leads'))    return 'leads';
+  if (clientObjs.includes('whatsapp')) return 'whatsapp';
+  if (clientObjs.some(ob => ['trafego', 'alcance', 'seguidores'].includes(ob))) return 'traffic';
+
   return 'other';
 }
 
-// Extrai tag entre colchetes do nome da campanha, ex: "Lima [FORMS] - Tráfego" → "FORMS"
-function extractNameTag(campName: string): string | null {
-  const match = campName.match(/\[([^\]]+)\]/);
-  return match ? match[1].toUpperCase() : null;
-}
-
-function typeLabel(campName: string, t: CampType): string {
-  // Prioridade: tag do nome da campanha
-  const nameTag = extractNameTag(campName);
-  if (nameTag) return nameTag;
-  // Fallback pelo tipo detectado
+function typeLabel(t: CampType): string {
   if (t === 'leads')    return 'FORMS';
   if (t === 'whatsapp') return 'WPP';
   if (t === 'traffic')  return 'VP';
@@ -48,10 +66,11 @@ export async function generateWeeklyCampaignReport(
   // Busca cliente
   const { data: client } = await supabase
     .from('clients')
-    .select('name')
+    .select('name, objectives')
     .eq('id', clientId)
     .maybeSingle();
   const clientName = client?.name ?? `Cliente ${clientId}`;
+  const clientObjectives: string[] = (client as { objectives?: string[] } | null)?.objectives ?? [];
 
   // Busca campanhas
   const { data: campaigns } = await supabase
@@ -109,7 +128,7 @@ export async function generateWeeklyCampaignReport(
 
   // Formata data para exibição
   const fmt = (d: string) => {
-    const [y, m, day] = d.split('-');
+    const [, m, day] = d.split('-');
     return `${day}/${m}`;
   };
   const period = `${fmt(start)} a ${fmt(end)}`;
@@ -121,8 +140,8 @@ export async function generateWeeklyCampaignReport(
     const m = metricsMap.get(camp.id);
     if (!m || m.spend === 0) continue; // ignora campanhas sem investimento no período
 
-    const tipo = detectType(camp.objective);
-    const tag  = typeLabel(camp.name, tipo);
+    const tipo = detectType(camp.name, camp.objective, m, clientObjectives);
+    const tag  = typeLabel(tipo);
     const header = tag
       ? `Relatório de Campanha ${clientName} [${tag}] – (${period})`
       : `Relatório de Campanha ${clientName} – (${period})`;
