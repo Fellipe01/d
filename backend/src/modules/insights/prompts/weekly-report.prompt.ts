@@ -47,9 +47,81 @@ export interface WeeklyReportContext {
   reportType: 'weekly_mon' | 'weekly_wed' | 'weekly_fri' | 'manual';
 }
 
+// Detecta o tipo de campanha e retorna a tag correspondente
+function getCampaignTag(objectives: string[]): string {
+  const tags: string[] = [];
+  if (objectives.includes('whatsapp'))                               tags.push('WPP');
+  if (objectives.includes('leads'))                                  tags.push('FORMS');
+  if (objectives.some(o => ['trafego', 'alcance', 'seguidores'].includes(o))) tags.push('VP');
+  return tags.length ? tags.join('+') : 'GERAL';
+}
+
+function fmtBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtNum(value: number): string {
+  return value.toLocaleString('pt-BR');
+}
+
+// Gera o card de segunda-feira diretamente, sem depender de formatação da IA
+function buildMondayCard(ctx: WeeklyReportContext): string {
+  const { client, metrics, crmSummary } = ctx;
+  const periodLabel = `${formatBR(ctx.periodStart)} a ${formatBR(ctx.periodEnd)}`;
+  const tag = getCampaignTag(client.objectives);
+  const isWpp = client.objectives.includes('whatsapp');
+  const isVP  = client.objectives.some(o => ['trafego', 'alcance', 'seguidores'].includes(o));
+  const isForms = client.objectives.includes('leads');
+
+  const lines: string[] = [
+    `Relatório de Campanha ${client.name} [${tag}] – (${periodLabel})`,
+    `👥 Alcance: ${fmtNum(metrics.reach)}`,
+    `💰 Total Investido: R$ ${fmtBRL(metrics.spend)}`,
+  ];
+
+  if (isWpp) {
+    lines.push(`💬 Mensagens: ${fmtNum(metrics.messages)}`);
+    if (metrics.messages > 0) {
+      lines.push(`🏆 Custo por Mensagem: R$ ${fmtBRL(metrics.cost_per_message)}`);
+    }
+  }
+
+  if (isForms) {
+    lines.push(`📌 Leads Gerados: ${fmtNum(metrics.leads)}`);
+    if (metrics.leads > 0) {
+      lines.push(`🏆 Custo Médio por Lead (CPL): R$ ${fmtBRL(metrics.cpl)}`);
+    }
+    if (crmSummary && crmSummary.mql > 0) {
+      lines.push(`📌 MQLs Gerados: ${fmtNum(crmSummary.mql)}`);
+      const cpmql = metrics.spend > 0 && crmSummary.mql > 0 ? metrics.spend / crmSummary.mql : 0;
+      lines.push(`🏆 Custo Médio por MQL (CPMQL): R$ ${fmtBRL(cpmql)}`);
+    }
+    if (crmSummary && crmSummary.sales > 0) {
+      lines.push(`🏆 Vendas: ${crmSummary.sales}`);
+    }
+  }
+
+  if (isVP) {
+    lines.push(`🖱️ Visitas/Cliques: ${fmtNum(metrics.clicks)}`);
+    if (metrics.clicks > 0) {
+      lines.push(`🏆 Custo por Visita: R$ ${fmtBRL(metrics.cpc)}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 export function buildWeeklyReportPrompt(ctx: WeeklyReportContext): string {
   const { client, metrics, kpiResults, topCreatives, crmSummary, alerts, reportType } = ctx;
   const periodLabel = `${formatBR(ctx.periodStart)} a ${formatBR(ctx.periodEnd)}`;
+
+  // Segunda-feira: card simples por tipo de campanha
+  if (reportType === 'weekly_mon') {
+    const card = buildMondayCard(ctx);
+    return `Copie EXATAMENTE o card abaixo, sem adicionar nenhum texto antes ou depois, sem alterar nenhum número ou emoji:
+
+${card}`;
+  }
 
   const kpiTable = kpiResults.map(r =>
     `- **${r.kpi_name}**: Meta ${r.target.toFixed(2)} | Real ${r.actual.toFixed(2)} | Δ ${r.delta_pct.toFixed(1)}% | Status: ${r.status}`
